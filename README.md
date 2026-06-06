@@ -48,6 +48,14 @@ The only server-side code is in [`functions/`](functions/): a read-only GitHub p
 avoid anonymous rate limits, and the GitHub OAuth token exchange. Their credentials live
 in environment variables on the host, not in this repo.
 
+## Open by default
+
+This repo is the product - the same code, deployed straight from `main`, MIT-licensed.
+Nothing's hidden: read it, fork it, run your own copy, open a PR. No account is needed
+just to view a keymap, your API keys and configs never touch the server, and development
+happens in the open. If a tool is going to read your repos and edit your keymaps, you
+should be able to see exactly what it does - here, you can.
+
 ## What it does
 
 - Load from GitHub by pasting an owner, `owner/repo`, or a direct `.keymap` link.
