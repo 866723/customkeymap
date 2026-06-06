@@ -1648,6 +1648,53 @@ function renderConditionalLayers(conds){
   return h;
 }
 
+// Parse per-layer sensor-bindings (rotary encoders), scoped to the keymap node.
+// Returns [{layer, encoders:[{cw, ccw}]}]. The common behaviour is
+// &inc_dec_kp <clockwise> <counter-clockwise>.
+function parseEncoders(text){
+  text = stripComments(text);
+  let scope = text;
+  const km = text.match(/\bkeymap\s*\{/);
+  if(km){ let depth=1,i=km.index+km[0].length;
+    while(i<text.length&&depth>0){ const c=text[i++]; if(c==='{')depth++; else if(c==='}')depth--; }
+    if(depth===0) scope=text.slice(km.index+km[0].length,i-1); }
+  const result = [];
+  const childRe = /(?:(\w+)\s*:\s*)?(\w+)\s*\{/g;
+  let cm;
+  while((cm=childRe.exec(scope))!==null){
+    const name = cm[1]||cm[2];
+    let d=1,j=cm.index+cm[0].length;
+    while(j<scope.length&&d>0){ const c=scope[j++]; if(c==='{')d++; else if(c==='}')d--; }
+    const body = scope.slice(cm.index+cm[0].length,j-1);
+    const sbM = body.match(/sensor-bindings\s*=\s*([^;]+);/);
+    if(!sbM) continue;
+    const sbText = sbM[1].replace(/[<>,]/g,' ');
+    const encs = []; const reB = /&(\w+)\s+(\S+)\s+(\S+)/g; let em;
+    while((em=reB.exec(sbText))!==null) encs.push({ cw:em[2], ccw:em[3] });
+    if(encs.length) result.push({ layer: fmtName(name), encoders: encs });
+  }
+  return result;
+}
+
+function renderEncoders(list){
+  if(!list.length) return '';
+  let h = '<div class="card combos-section">';
+  h += '<div class="combos-title">Encoders</div>';
+  h += '<div class="combos-grid">';
+  list.forEach(item=>{
+    item.encoders.forEach((e,ei)=>{
+      const tag = item.encoders.length>1 ? `${esc(item.layer)} #${ei+1}` : esc(item.layer);
+      h += `<div class="combo" title="Rotary encoder on the ${esc(item.layer)} layer (clockwise / counter-clockwise)">`;
+      h += `<span class="combo-keys">${tag}</span>`;
+      h += `<span class="combo-arr">↻</span><span class="combo-out">${esc(kl(e.cw))}</span>`;
+      h += `<span class="combo-arr">↺</span><span class="combo-out">${esc(kl(e.ccw))}</span>`;
+      h += `</div>`;
+    });
+  });
+  h += '</div></div>';
+  return h;
+}
+
 // ── C preprocessor (enough for ZMK keymaps incl. miryoku X-macros) ───────────
 // Namespaced in an IIFE so its helpers don't clash with the parser's.
 const cppPreprocess = (function(){
@@ -1835,6 +1882,7 @@ async function render(){
     }
     h += renderCombos(combos, defaultBindings);
     h += renderConditionalLayers(parseConditionalLayers(text));
+    h += renderEncoders(parseEncoders(text));
     out.innerHTML=h; out.style.display='block';
     updateLegend(out);
     afterRender();
