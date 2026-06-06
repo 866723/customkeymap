@@ -1,0 +1,3151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>customkeymap - ZMK keymap visualizer &amp; editor</title>
+<script>
+  // Set the theme before first paint (no flash). Stored choice wins; else follow the OS.
+  (function(){ try{
+    var t = localStorage.getItem('ck_theme');
+    if(t!=='light' && t!=='dark') t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  }catch(e){ document.documentElement.setAttribute('data-theme','light'); } })();
+</script>
+<style>
+:root{
+  --bg:#f5f6f8; --surface:#fff; --surface-2:#f8f9fb;
+  --border:#e7e9ee; --border-strong:#d6dae1;
+  --text:#16181d; --text-soft:#5c6573; --text-faint:#98a0ad;
+  --accent:#4f46e5; --accent-d:#4338ca; --accent-soft:#eef0ff;
+  --radius:10px; --radius-lg:16px;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.05);
+  --shadow-md:0 6px 22px rgba(16,24,40,.10);
+  --shadow-lg:0 24px 60px rgba(16,24,40,.24);
+  --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Consolas,monospace;
+}
+/* Dark theme - applied via data-theme="dark" on <html> (set by a no-flash init script). */
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#181b22; --surface-2:#20242d;
+  --border:#2a2f3a; --border-strong:#3a4150;
+  --text:#e6e8ee; --text-soft:#a3acba; --text-faint:#6b7483;
+  --accent:#7c83ff; --accent-d:#9aa0ff; --accent-soft:#23263a;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.45); --shadow-md:0 6px 22px rgba(0,0,0,.55); --shadow-lg:0 24px 60px rgba(0,0,0,.65);
+}
+:root[data-theme="dark"] header{background:rgba(18,20,26,.82)}
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] .kc-search,
+:root[data-theme="dark"] #combo-builder input,
+:root[data-theme="dark"] .gh-select,
+:root[data-theme="dark"] .gh-input,
+:root[data-theme="dark"] .combo-out{background-color:var(--surface-2)}
+:root[data-theme="dark"] textarea:focus,
+:root[data-theme="dark"] .gh-input:focus{background:var(--surface-2)}
+:root[data-theme="dark"] .btn-s,
+:root[data-theme="dark"] .btn-refresh{background:#2a2f3a;color:#cdd3dd}
+:root[data-theme="dark"] .btn-s:hover,
+:root[data-theme="dark"] .btn-refresh:hover{background:#333b48}
+:root[data-theme="dark"] .btn-p{background:var(--accent);color:#0f1115}
+:root[data-theme="dark"] .btn-p:hover{background:var(--accent-d)}
+:root[data-theme="dark"] .k-std{background:#2a2f3a;color:#e6e8ee;border-color:#3a4150}
+:root[data-theme="dark"] .k-trans{background:#1b1f27;color:#5a6473;border-color:#2a2f3a}
+:root[data-theme="dark"] .k-none{background:#15181e;color:#454e5c;border-color:#23272f}
+:root[data-theme="dark"] .kc-item{border-bottom-color:var(--border)}
+:root[data-theme="dark"] #keytip{background:#2a2f3a;color:#fff;border:1px solid #3a4150}
+:root[data-theme="dark"] .drop-card{background:rgba(24,27,34,.94)}
+:root[data-theme="dark"] .edit-note{background:#2a230f;border-color:#4a3c12;color:#e8c47a}
+:root[data-theme="dark"] .err{background:#2a1416;border-color:#5a2327;color:#f5a3a3}
+.theme-toggle{background:none;border:1px solid var(--border);color:var(--text-soft);cursor:pointer;font-size:15px;line-height:1;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.theme-toggle:hover{background:var(--surface-2);color:var(--text)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.5}
+header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.82);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--border);padding:13px 28px;display:flex;align-items:center;gap:12px}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(145deg,#4f46e5,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:var(--shadow-sm);flex-shrink:0}
+header h1{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+header h1 b{color:var(--accent);font-weight:700}
+header span{font-size:13px;color:var(--text-faint)}
+.header-spacer{flex:1}
+.build-tag{font-size:11px;font-family:var(--mono);color:var(--text-faint);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;letter-spacing:-.01em}
+.site-footer{max-width:1100px;margin:4px auto 44px;padding:0 28px;text-align:center;font-size:12px;color:var(--text-faint);line-height:1.6}
+.site-footer b{color:var(--text-soft);font-weight:600}
+.site-footer .footer-links{display:block;margin-top:6px}
+.site-footer .footer-links a{color:var(--accent-d);text-decoration:none}
+.site-footer .footer-links a:hover{text-decoration:underline}
+#keytip{display:none;position:fixed;z-index:90;pointer-events:none;max-width:300px;background:var(--text);color:#fff;padding:8px 11px;border-radius:8px;box-shadow:var(--shadow-lg);font-size:12.5px;line-height:1.4}
+#keytip .kt-main{display:block;font-weight:600}
+#keytip .kt-raw{display:block;margin-top:4px;font-family:var(--mono);font-size:11px;opacity:.65}
+.ai-beta{font-size:10px;font-weight:700;letter-spacing:.04em;background:var(--accent-soft);color:var(--accent-d);border-radius:5px;padding:2px 6px;vertical-align:middle;margin-left:6px}
+.ai-priv{font-size:12.5px;line-height:1.5;color:var(--text-soft);background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:14px}
+.ai-row{display:flex;gap:10px;align-items:flex-end}
+.ai-check{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-soft);text-transform:none;letter-spacing:0;margin-top:8px;font-weight:400}
+.ai-check input{width:auto}
+.ai-log{margin-top:12px;max-height:150px;overflow:auto;background:#0f1117;color:#cbd5e1;border-radius:9px;padding:10px 12px;font-family:var(--mono);font-size:11.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.ai-log .l-ai{color:#a5b4fc}
+.ai-log .l-tool{color:#86efac}
+.ai-log .l-warn{color:#fca5a5}
+.ai-log .l-err{color:#fca5a5;font-weight:600}
+.ai-diff{margin-top:12px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:13px;line-height:1.6}
+.ai-diff h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-soft)}
+.ai-diff .d-line{font-family:var(--mono);font-size:12px;color:var(--text)}
+.ai-diff .d-final{margin-top:8px;font-size:12.5px;color:var(--text-soft);font-style:italic}
+.commit-status{margin-top:12px;font-size:13px;line-height:1.6;color:var(--text-soft);word-break:break-word}
+.commit-status a{color:var(--accent-d)}
+.container{max-width:1080px;margin:0 auto;padding:28px 20px 64px}
+.card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:22px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-soft);margin-bottom:8px}
+textarea{width:100%;height:168px;font-family:var(--mono);font-size:12.5px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;resize:vertical;background:var(--surface-2);color:var(--text);line-height:1.6;transition:border-color .15s,box-shadow .15s}
+textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:#fff}
+.actions{display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap}
+button{padding:9px 16px;font-size:13px;font-weight:600;border:none;border-radius:9px;cursor:pointer;transition:background .14s,box-shadow .14s,transform .04s;font-family:inherit}
+button:active{transform:translateY(.5px)}
+.btn-p{background:var(--text);color:#fff;box-shadow:var(--shadow-sm)}.btn-p:hover{background:#000}
+.btn-s{background:#eceef2;color:#3a414c}.btn-s:hover{background:#e2e5ea}
+.err{color:#b42318;font-size:13px;margin-top:10px;display:none;background:#fef3f2;border:1px solid #fecdca;border-radius:var(--radius);padding:10px 13px;line-height:1.5}
+.gh-row{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap}
+.gh-url{font-size:11px;color:var(--text-soft);font-family:var(--mono);background:var(--surface-2);border-radius:6px;padding:3px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px;flex-shrink:1}
+.gh-input{flex:1 1 280px;min-width:200px;font-size:12px;font-family:var(--mono);border:1px solid var(--border);border-radius:9px;padding:9px 11px;color:var(--text);background:var(--surface-2);transition:border-color .15s,box-shadow .15s}
+.gh-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:#fff}
+.gh-select{font-size:12px;font-family:var(--mono);border:1px solid var(--border);border-radius:9px;padding:9px 30px 9px 11px;color:var(--text);background-color:#fff;max-width:360px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa0ad' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.gh-hint{font-size:12px;color:var(--text-faint);margin-top:8px;width:100%;line-height:1.55}
+.gh-hint code{font-family:var(--mono);color:var(--text-soft);background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.btn-gh{background:#24292f;color:#fff;display:flex;align-items:center;gap:6px}.btn-gh:hover{background:#30363d}
+.btn-gh svg{flex-shrink:0}
+.btn-refresh{background:#eceef2;color:#3a414c;padding:9px 12px}.btn-refresh:hover{background:#e2e5ea}
+.btn-refresh:disabled,.btn-gh:disabled{opacity:.5;cursor:not-allowed}
+.gh-status{font-size:12px;color:var(--text-soft);font-weight:500}
+.gh-status.loading{color:var(--accent)}
+.gh-status.ok{color:#059669}
+.gh-status.fail{color:#dc2626}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid #c7d7f9;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:4px}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:12px 20px;background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:18px;box-shadow:var(--shadow-sm)}
+.legend-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint)}
+.legend-right{margin-left:auto;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.legend-view{display:flex;align-items:center;gap:9px}
+.legend-snap{display:flex;align-items:center;gap:9px}
+.legend-snap.asking .lv-label{color:var(--accent-d)}
+.legend-snap.asking .seg{box-shadow:0 0 0 2px var(--accent-soft)}
+.legend-view .lv-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg-btn{background:var(--surface);border:none;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--text-soft);cursor:pointer;transition:background .12s,color .12s}
+.seg-btn+.seg-btn{border-left:1px solid var(--border)}
+.seg-btn.active{background:var(--accent);color:#fff}
+.seg-btn:not(.active):hover{background:var(--surface-2)}
+.li{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-soft)}
+.ld{width:13px;height:13px;border-radius:4px;flex-shrink:0}
+
+.output{display:none}
+.layer-card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:20px 22px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+.layer-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.layer-name{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.layer-num{font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-d);text-transform:uppercase;letter-spacing:.4px}
+
+.keyboard{display:flex;align-items:flex-end;justify-content:center;gap:22px;overflow-x:auto;padding:4px}
+.eq-keyboard{display:flex;align-items:center;justify-content:center;overflow-x:auto;padding:4px}
+.eq-half{position:relative;flex-shrink:0}
+.eq-gap{width:26px;flex-shrink:0}
+.eq-half .key{margin:0}
+.coord-board .key{margin:0}
+.half{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;gap:6px}
+.rows-fallback{justify-content:center}
+.rows-fallback .half{align-items:center}
+.rows-fallback .row{justify-content:center}
+.wrap-board{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:760px;margin:0 auto}
+.row.thumb-l{justify-content:flex-end}
+.row.thumb-r{justify-content:flex-start}
+
+.key{width:56px;height:48px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:600;line-height:1.25;text-align:center;padding:3px 4px;border:1px solid rgba(0,0,0,.10);cursor:default;position:relative;overflow:hidden;word-break:break-word;background-image:linear-gradient(180deg,rgba(255,255,255,.14),rgba(0,0,0,.07));box-shadow:0 1px 1.5px rgba(16,24,40,.18),inset 0 1px 0 rgba(255,255,255,.16);transition:transform .06s,box-shadow .12s}
+.key.thumb{height:52px;width:56px}
+.key span.top{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.key span.bot{display:block;font-size:9px;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.k-std{background:#edeff3;color:#16181d;border-color:#d6dae1}
+.k-thumb{background:#0d9488;color:#fff;border-color:#0a7c72}
+.k-modtap{background:#7c3aed;color:#fff;border-color:#6527d0}
+.k-layer{background:#2563eb;color:#fff;border-color:#1a50cc}
+.k-sticky{background:#d97706;color:#fff;border-color:#b86105}
+.k-system{background:#dc2626;color:#fff;border-color:#b91c1c}
+.k-mouse{background:#ec4899;color:#fff;border-color:#db2777}
+.k-trans{background:#f3f4f6;color:#c0c5ce;border-color:#e3e6ea;border-style:dashed;background-image:none;box-shadow:none}
+.k-none{background:#fafbfc;color:#dde1e6;border-color:#eef0f3;background-image:none;box-shadow:none}
+.k-joy{background:#0f766e;color:#fff;border-color:#0b5d56}
+.k-joy .joy-dot{font-size:18px;line-height:1}
+.k-joy .joy-lbl{font-size:9px;opacity:.85;margin-top:2px}
+.k-thumb.k-layer{background:#1d4ed8;border-color:#1740bb}
+.k-thumb.k-modtap{background:#5b21b6;border-color:#4c1d95}
+.k-thumb.k-sticky{background:#b45309;border-color:#92400e}
+.k-thumb.k-mouse{background:#be185d;border-color:#9d174d}
+
+.sep{width:18px;display:flex;align-items:center;justify-content:center}
+.sep-inner{width:2px;background:var(--border-strong);border-radius:1px;height:140px}
+
+.combos-section{margin-bottom:18px}
+.combos-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px;letter-spacing:-.01em}
+.combos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 12px;align-items:start}
+.combo{display:inline-flex;align-items:center;gap:9px;padding:8px 13px;background:var(--accent-soft);border:1px solid #dfe3fb;border-radius:10px;font-size:13px;color:var(--text);width:fit-content;justify-self:start}
+.combo-keys{font-weight:600;color:var(--accent-d);letter-spacing:.01em}
+.combo-arr{color:#a9b0e6;font-size:12px;flex-shrink:0}
+.combo-out{font-weight:700;color:var(--text);background:#fff;border:1px solid #dfe3fb;border-radius:5px;padding:1px 8px;font-size:13px}
+.combo-lay{font-size:11px;color:#8a93c9;margin-left:2px}
+.key span.bot-ov{display:block;font-size:9px;color:#0369a1;opacity:.95;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.key span.bot-shift{display:block;font-size:9px;color:#6b7280;opacity:.85;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Editor ── */
+#editor-bar{display:none;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+#editor-bar.on{display:flex}
+#editor-bar .eb-hint{font-size:12.5px;color:var(--text-soft);flex:1 1 100%;order:5}
+#editor-bar button{padding:7px 13px;font-size:12.5px}
+#editor-bar button:disabled{opacity:.4;cursor:not-allowed}
+.editing .key[data-ki]{cursor:pointer}
+.editing .key[data-ki]:hover{outline:2.5px solid #fff;box-shadow:0 0 0 4px var(--accent);transform:translateY(-1px);z-index:1}
+.edit-note{background:#fff8ed;border:1px solid #fde4c0;color:#9a5413;border-radius:var(--radius);padding:11px 14px;font-size:13px;margin-bottom:16px;line-height:1.55}
+.lay-rename{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:2px 7px;border-radius:6px;line-height:1}
+.lay-rename:hover{background:var(--accent-soft);color:var(--accent-d)}
+.lay-drag{cursor:grab;color:var(--text-faint);font-size:15px;padding:2px 5px;margin-right:2px;user-select:none;line-height:1}
+.lay-drag:active{cursor:grabbing}
+.lay-drag:hover{color:var(--accent-d)}
+.lay-del{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:2px 7px;border-radius:6px;line-height:1}
+.lay-del:hover{background:#fee2e2;color:#dc2626}
+.layer-card.dragging{opacity:.45}
+.layer-card.drop-before{box-shadow:0 -3px 0 0 var(--accent)}
+.layer-card.drop-after{box-shadow:0 3px 0 0 var(--accent)}
+.layer-pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.pill-hint{font-size:12px;color:var(--text-faint);margin:0 0 16px 4px}
+.layer-pill{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;box-shadow:var(--shadow-sm);transition:border-color .12s,background .12s}
+.layer-pill[draggable="true"]{cursor:grab}
+.layer-pill[draggable="true"]:active{cursor:grabbing}
+.layer-pill .lp-grip{font-size:12px;opacity:.45;margin-right:-2px;line-height:1}
+.layer-pill.active .lp-grip{opacity:.7}
+.layer-pill:hover{border-color:var(--border-strong)}
+.layer-pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.layer-pill .lp-num{font-size:11px;opacity:.6;font-family:var(--mono)}
+.layer-pill.active .lp-num{opacity:.85}
+.layer-pill.dragging{opacity:.45}
+.layer-pill.drop-before{box-shadow:inset 3px 0 0 0 var(--accent)}
+.layer-pill.drop-after{box-shadow:inset -3px 0 0 0 var(--accent)}
+.combo-rm{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;line-height:1;padding:2px 4px;margin-left:2px;border-radius:5px}
+.combo-rm:hover{background:#fee2e2;color:#dc2626}
+#combo-builder{display:none;position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:60;width:min(440px,calc(100vw - 28px));max-height:calc(100vh - 100px);overflow:auto;background:var(--surface);color:var(--text);padding:18px 20px;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--border)}
+#combo-builder.on{display:block}
+#combo-builder .cb-head{display:flex;align-items:center;gap:10px}
+#combo-builder strong{font-size:15px;font-weight:700;letter-spacing:-.01em}
+#combo-builder .cb-hint{font-size:12.5px;color:var(--text-soft);margin-top:4px;line-height:1.45}
+#combo-builder .cb-pos{font-size:12px;font-family:var(--mono);background:var(--accent-soft);color:var(--accent-d);border-radius:6px;padding:4px 9px;margin-left:auto}
+#combo-builder label{margin-top:13px}
+#combo-builder input{width:100%;font-size:13px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:#fff;color:var(--text);font-family:inherit;transition:border-color .15s,box-shadow .15s}
+#combo-builder input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#combo-builder .cb-output{display:flex;align-items:center;gap:10px}
+#combo-builder #cb-out-label{flex:1;font-weight:600;font-size:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 11px}
+#combo-builder .cb-output button{flex:0 0 auto}
+#combo-builder details.cb-adv{margin-top:14px;border-top:1px solid var(--border);padding-top:10px}
+#combo-builder details.cb-adv summary{font-size:12px;font-weight:600;color:var(--text-soft);cursor:pointer}
+#combo-builder .hint{font-size:11.5px;color:var(--text-faint);margin-top:4px;line-height:1.4}
+#combo-builder .cb-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.key.combo-picked{outline:3px solid #f59e0b !important;outline-offset:1px;box-shadow:0 0 0 4px rgba(245,158,11,.35) !important;z-index:2}
+.combo-picking .key[data-ki]{cursor:crosshair}
+
+/* modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(16,18,24,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:70;align-items:center;justify-content:center;padding:20px}
+.modal-bg.on{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);width:min(560px,100%);max-height:88vh;overflow:auto;box-shadow:var(--shadow-lg);animation:pop .14s ease-out}
+@keyframes pop{from{transform:scale(.97);opacity:.5}to{transform:scale(1);opacity:1}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)}
+.modal-head h3{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.modal-head .x{background:none;border:none;font-size:22px;line-height:1;color:var(--text-faint);cursor:pointer;padding:0 4px}
+.modal-head .x:hover{color:var(--text)}
+.modal-body{padding:20px 22px}
+.modal-body label{margin-top:14px}
+.modal-body label:first-child{margin-top:0}
+.f-row{display:flex;gap:12px;flex-wrap:wrap}
+.f-row>div{flex:1 1 160px}
+select,.kc-search{width:100%;font-size:13px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:#fff;color:var(--text);font-family:inherit;transition:border-color .15s,box-shadow .15s}
+select:focus,.kc-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.kc-pick{display:flex;gap:8px;align-items:center}
+.ai-model-row{display:flex;gap:6px;align-items:center}
+.ai-model-row input{flex:1;min-width:0}
+.ai-model-row button{flex:0 0 auto;white-space:nowrap}
+.kc-pick #ke-kc-cat{flex:0 0 42%;min-width:0}
+.kc-pick .kc-search{flex:1;min-width:0}
+.kc-list{max-height:210px;overflow:auto;border:1px solid var(--border);border-radius:10px;margin-top:8px}
+.kc-item{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f3f5}
+.kc-item:hover,.kc-item.sel{background:var(--accent-soft)}
+.kc-item .code{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+.kc-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-faint);padding:7px 12px 3px;background:var(--surface-2);position:sticky;top:0}
+.modal-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:15px 22px;border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+.modal-foot .preview{font-family:var(--mono);font-size:12px;color:var(--accent-d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-foot .btns{display:flex;gap:8px;flex-shrink:0}
+
+/* glossary + drag-drop */
+.gloss-item{padding:13px 0;border-bottom:1px solid var(--border)}
+.gloss-item:last-child{border-bottom:none}
+.gloss-term{font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+.gloss-what{font-size:13px;color:var(--text-soft);line-height:1.55}
+.gloss-eg{font-family:var(--mono);font-size:11.5px;color:var(--accent-d);background:var(--accent-soft);border-radius:5px;padding:2px 7px;margin-top:6px;display:inline-block}
+#drop-overlay{display:none;position:fixed;inset:0;z-index:80;background:rgba(79,70,229,.10);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:40px}
+#drop-overlay.on{display:flex}
+.drop-card{border:2.5px dashed var(--accent);border-radius:20px;background:rgba(255,255,255,.92);color:var(--accent-d);font-size:18px;font-weight:700;padding:56px 78px;box-shadow:var(--shadow-lg);text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" title="customkeymap">
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="#fff" aria-hidden="true">
+      <rect x="3"  y="6"  width="4"  height="4"   rx="1"/>
+      <rect x="10" y="6"  width="4"  height="4"   rx="1"/>
+      <rect x="17" y="6"  width="4"  height="4"   rx="1"/>
+      <rect x="3"  y="12" width="4"  height="4"   rx="1"/>
+      <rect x="10" y="12" width="4"  height="4"   rx="1"/>
+      <rect x="17" y="12" width="4"  height="4"   rx="1"/>
+      <rect x="6"  y="18" width="12" height="3.5" rx="1.2"/>
+    </svg>
+  </div>
+  <h1>custom<b>keymap</b></h1>
+  <span>ZMK keymap visualizer &amp; editor</span>
+  <span class="header-spacer"></span>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+  <span class="build-tag" title="Deployed build - confirms your browser has the latest version">build 2026-06-06·ar</span>
+  <button class="btn-s" id="feedback-btn" onclick="openFeedback()" style="display:none">💬 Feedback</button>
+  <button class="btn-s" onclick="openGlossary()">Behaviour guide</button>
+</header>
+
+<div class="container">
+  <div class="card">
+    <label>Your .keymap - paste it, drag &amp; drop the file anywhere, or load from GitHub below</label>
+    <textarea id="inp" placeholder="Paste a ZMK .keymap here - or drag &amp; drop the file anywhere on the page, load it from GitHub below, or start fresh with “New from scratch”." oninput="LOADED_SRC=null;REPO_LAYOUTS=[];REPO_LAYOUTS_KEY=null;ZMK_LAYOUTS=[];EDIT_HISTORY=null;schedulePreview()"></textarea>
+    <div class="actions">
+      <button class="btn-p" onclick="render()">Render Layout</button>
+      <button class="btn-s" onclick="loadEx()">Load Example</button>
+      <button class="btn-s" onclick="openNewKeymap()">New from scratch</button>
+      <button class="btn-s" onclick="clearAll()">Clear</button>
+      <button class="btn-s" id="btn-svg" onclick="downloadKeymap('svg')" style="display:none">Export SVG</button>
+      <button class="btn-s" id="btn-png" onclick="downloadKeymap('png')" style="display:none">Export PNG</button>
+    </div>
+    <div class="gh-row">
+      <input type="text" id="gh-input" class="gh-input" spellcheck="false"
+             placeholder="GitHub owner, owner/repo, or a .keymap URL"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();loadFromGitHub();}">
+      <button class="btn-s btn-gh" id="btn-gh" onclick="loadFromGitHub()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Load
+      </button>
+      <select id="gh-keymap-select" class="gh-select" style="display:none" onchange="loadSelectedKeymap()"></select>
+      <span class="gh-status" id="gh-status"></span>
+      <div class="gh-hint">Paste an <code>owner</code> (searches all their repos), an <code>owner/repo</code>, or a direct <code>.keymap</code> link - keymaps are found automatically; pick from the dropdown when there's more than one. (Owner search skips only huge firmware repos.)</div>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <!-- Editor toolbar - appears automatically once a keymap is rendered. -->
+  <div id="editor-bar">
+    <button class="btn-s" id="eb-undo" onclick="editUndo()">↶ Undo</button>
+    <button class="btn-s" id="eb-redo" onclick="editRedo()">↷ Redo</button>
+    <button class="btn-s" id="eb-layer" onclick="addLayerUI()">＋ Layer</button>
+    <button class="btn-s" id="eb-beh" onclick="openBehaviorEditor()">＋ Behaviour</button>
+    <button class="btn-s" id="eb-combo" onclick="openComboEditor()">＋ Combo</button>
+    <button class="btn-s" id="eb-ai" onclick="openAIEditor()">✨ AI edit</button>
+    <button class="btn-s" id="eb-commit" onclick="openCommitModal()">⬆ Commit to GitHub</button>
+    <button class="btn-p" id="eb-dl" onclick="downloadEditedKeymap()">Download .keymap</button>
+    <span class="eb-hint" id="eb-hint">Click any key to change what it does.</span>
+  </div>
+
+  <!-- Legend is built dynamically by updateLegend() - only categories present in
+       the rendered keymap are shown. -->
+  <div class="legend" id="legend" style="display:none">
+    <span class="legend-title">Legend</span>
+    <span class="legend-right" id="legend-right">
+      <span class="legend-snap" id="legend-snap" style="display:none">
+        <span class="lv-label" title="Many Corne PCBs let you snap off the outer column. Pick the version you actually have.">Version</span>
+        <span class="seg">
+          <button class="seg-btn" data-bv="trim" onclick="setBoardView('trim')"></button>
+          <button class="seg-btn" data-bv="full" onclick="setBoardView('full')"></button>
+        </span>
+      </span>
+      <span class="legend-view" id="legend-view" style="display:none">
+        <span class="lv-label">Show</span>
+        <span class="seg">
+          <button class="seg-btn" data-v="all" onclick="setLayerView('all')">All layers</button>
+          <button class="seg-btn" data-v="single" onclick="setLayerView('single')">One at a time</button>
+        </span>
+      </span>
+    </span>
+  </div>
+
+  <div class="output" id="out"></div>
+</div>
+
+<footer class="site-footer">
+  <span><b>Privacy-first.</b> Your keymaps and API keys stay in your browser - nothing is sent to the server. Usage analytics are anonymous and cookieless.</span>
+  <span class="footer-links"><a href="https://github.com/Kit-314/customkeymap" target="_blank" rel="noopener">View source on GitHub</a> · open source (MIT)</span>
+</footer>
+
+<!-- Key-editor modal (opened by clicking a key in edit mode). -->
+<div class="modal-bg" id="kemodal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="ke-title">Edit key</h3><button class="x" onclick="closeKeyEditor()" aria-label="Close">×</button></div>
+    <div class="modal-body" id="ke-body"></div>
+    <div class="modal-foot">
+      <span class="preview" id="ke-preview"></span>
+      <span class="btns">
+        <button class="btn-s" onclick="closeKeyEditor()">Cancel</button>
+        <button class="btn-p" onclick="applyKeyEditor()">Apply</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- New-behaviour modal (define a mod-morph / hold-tap / tap-dance). -->
+<div class="modal-bg" id="bemodal">
+  <div class="modal">
+    <div class="modal-head"><h3>New custom behaviour</h3><button class="x" onclick="closeBehaviorEditor()" aria-label="Close">×</button></div>
+    <div class="modal-body" id="be-body"></div>
+    <div class="modal-foot">
+      <span class="preview" id="be-preview"></span>
+      <span class="btns">
+        <button class="btn-s" onclick="closeBehaviorEditor()">Cancel</button>
+        <button class="btn-p" onclick="applyBehaviorEditor()">Create</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Combo builder (non-modal so the board stays clickable to pick keys). -->
+<div id="combo-builder">
+  <div class="cb-head"><strong>New combo</strong><span id="cb-positions" class="cb-pos">No keys selected</span></div>
+  <div class="cb-hint">Click the keys on the board that should fire together.</div>
+
+  <label>Name</label>
+  <input id="cb-name" placeholder="e.g. combo_esc" autocomplete="off">
+
+  <label>Outputs</label>
+  <div class="cb-output"><span id="cb-out-label">Esc</span><button class="btn-s" type="button" onclick="pickComboOutput()">Change…</button></div>
+
+  <details class="cb-adv">
+    <summary>Advanced - timing &amp; layers</summary>
+    <label>Speed (timeout)</label>
+    <input id="cb-timeout" type="number" value="50">
+    <div class="hint">How fast the keys must be pressed together, in milliseconds (default 50). Lower = stricter.</div>
+    <label>Only on layers</label>
+    <input id="cb-layers" placeholder="e.g. 0 1" autocomplete="off">
+    <div class="hint">Restrict the combo to specific layer numbers. Leave blank to work on every layer.</div>
+  </details>
+
+  <div class="cb-actions">
+    <button class="btn-s" type="button" onclick="cancelComboBuild()">Cancel</button>
+    <button class="btn-p" type="button" onclick="commitComboBuild()">Create combo</button>
+  </div>
+</div>
+
+<!-- New-keymap-from-scratch modal. -->
+<div class="modal-bg" id="nmodal">
+  <div class="modal">
+    <div class="modal-head"><h3>New keymap from scratch</h3><button class="x" onclick="closeNewKeymap()" aria-label="Close">×</button></div>
+    <div class="modal-body">
+      <label>Layout</label>
+      <select id="nm-preset"></select>
+      <div class="gh-hint" style="margin-top:8px">Creates a QWERTY <b>default</b> layer plus two blank layers (<code>lower</code>, <code>raise</code>) ready to fill in. Everything's editable afterwards.</div>
+    </div>
+    <div class="modal-foot"><span class="preview"></span><span class="btns">
+      <button class="btn-s" onclick="closeNewKeymap()">Cancel</button>
+      <button class="btn-p" onclick="createNewKeymap()">Create</button>
+    </span></div>
+  </div>
+</div>
+
+<!-- Behaviour glossary modal. -->
+<div class="modal-bg" id="glossmodal">
+  <div class="modal" style="width:min(680px,100%)">
+    <div class="modal-head"><h3>ZMK behaviour guide</h3><button class="x" onclick="closeGlossary()" aria-label="Close">×</button></div>
+    <div class="modal-body" id="gloss-body"></div>
+    <div class="modal-foot"><span class="preview"></span><span class="btns"><button class="btn-p" onclick="closeGlossary()">Got it</button></span></div>
+  </div>
+</div>
+
+<!-- Commit-to-GitHub modal. -->
+<div class="modal-bg" id="commitmodal">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-head"><h3>⬆ Commit to GitHub</h3><button class="x" onclick="closeCommitModal()" aria-label="Close">×</button></div>
+    <div class="modal-body">
+      <div class="ai-priv">🔒 Your edit is committed <b>directly from your browser</b> to your repo - the commit never passes through the server, which only holds the GitHub app secret used to sign you in.</div>
+      <div id="commit-target" class="gh-hint" style="margin-bottom:12px"></div>
+      <label>Commit message</label>
+      <input id="commit-msg" class="kc-search" autocomplete="off" value="Update keymap via customkeymap">
+      <div id="commit-status" class="commit-status"></div>
+      <div id="commit-log" class="ai-log" style="display:none"></div>
+    </div>
+    <div class="modal-foot"><span class="preview"></span><span class="btns">
+      <button class="btn-s" onclick="closeCommitModal()">Cancel</button>
+      <button class="btn-p" id="commit-go" onclick="doCommit()">Commit</button>
+    </span></div>
+  </div>
+</div>
+
+<!-- BYOK AI editor modal. -->
+<div class="modal-bg" id="aimodal">
+  <div class="modal" style="width:min(620px,100%)">
+    <div class="modal-head"><h3>✨ AI edit <span class="ai-beta">BYOK</span></h3><button class="x" onclick="closeAIEditor()" aria-label="Close">×</button></div>
+    <div class="modal-body">
+      <div class="ai-priv">🔒 Your API key is sent <b>directly from your browser</b> to the provider you choose - it never touches the server. The AI can only change your keymap through the same safe editing tools you use by hand, and you’ll review a diff before anything is applied.</div>
+      <div class="ai-row">
+        <div style="flex:0 0 150px"><label>Provider</label>
+          <select id="ai-provider" onchange="aiProviderChanged()"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI (GPT)</option></select>
+        </div>
+        <div style="flex:1"><label>Model</label>
+          <div class="ai-model-row"><select id="ai-model-sel" onchange="aiModelSelChanged()"></select><button class="btn-s" type="button" id="ai-loadmodels" onclick="aiFetchModels(false)" title="Fetch the models your key can use">↻ Load</button></div>
+        </div>
+      </div>
+      <div class="gh-hint" id="ai-model-hint" style="margin-top:6px"></div>
+      <label>API key</label>
+      <input id="ai-key" type="password" autocomplete="off" placeholder="sk-… (your own key)" onblur="if(this.value.trim())aiFetchModels(true)">
+      <label class="ai-check"><input type="checkbox" id="ai-remember"> Remember this key in this browser only (localStorage)</label>
+      <label style="margin-top:12px">What should the AI change?</label>
+      <textarea id="ai-instruction" rows="3" placeholder="e.g. make the right thumb a layer-tap to Lower on Space, and add a combo on the two index keys for Esc"></textarea>
+      <div id="ai-log" class="ai-log" style="display:none"></div>
+      <div id="ai-diff" class="ai-diff" style="display:none"></div>
+    </div>
+    <div class="modal-foot"><span class="preview" id="ai-status"></span><span class="btns">
+      <button class="btn-s" onclick="closeAIEditor()">Close</button>
+      <button class="btn-s" id="ai-discard" style="display:none" onclick="aiDiscard()">Discard</button>
+      <button class="btn-p" id="ai-go" onclick="aiPropose()">Propose changes</button>
+      <button class="btn-p" id="ai-apply" style="display:none" onclick="aiApply()">Apply changes</button>
+    </span></div>
+  </div>
+</div>
+
+<!-- Drag-and-drop overlay (shown while a file is dragged over the page). -->
+<div id="drop-overlay"><div class="drop-card">Drop a <b>.keymap</b> file to load it</div></div>
+
+<script src="editor-engine.js"></script>
+<script src="keycodes.js"></script>
+<script src="ai-editor.js"></script>
+<script>
+/* Cloudflare Web Analytics - cookieless, no personal data, no consent banner needed.
+   Paste the beacon token from the Cloudflare dashboard (Web Analytics → customkeymap.com).
+   The token is meant to live in public client HTML - it is not a secret.
+   Only fires on the production host(s) below, so staging/local never pollute the stats
+   (and it stays inert everywhere until the token is set). */
+(function(){
+  var CF_BEACON_TOKEN = '1f0814f5da1742e1b4c0cd0f9aa1cbb9';   // Cloudflare Web Analytics (customkeymap.com)
+  var PROD_HOSTS = ['customkeymap.com', 'www.customkeymap.com'];
+  if(!CF_BEACON_TOKEN || PROD_HOSTS.indexOf(location.hostname) === -1) return;
+  var s = document.createElement('script');
+  s.defer = true;
+  s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  s.setAttribute('data-cf-beacon', JSON.stringify({ token: CF_BEACON_TOKEN }));
+  document.head.appendChild(s);
+})();
+</script>
+<script>
+// ── Key label lookup ─────────────────────────────────────────────────────────
+const KL = {
+  A:'A',B:'B',C:'C',D:'D',E:'E',F:'F',G:'G',H:'H',I:'I',J:'J',K:'K',
+  L:'L',M:'M',N:'N',O:'O',P:'P',Q:'Q',R:'R',S:'S',T:'T',U:'U',V:'V',
+  W:'W',X:'X',Y:'Y',Z:'Z',
+  N0:'0',N1:'1',N2:'2',N3:'3',N4:'4',N5:'5',N6:'6',N7:'7',N8:'8',N9:'9',
+  // NUMBER_n aliases (used in some ZMK configs)
+  NUMBER_0:'0',NUMBER_1:'1',NUMBER_2:'2',NUMBER_3:'3',NUMBER_4:'4',
+  NUMBER_5:'5',NUMBER_6:'6',NUMBER_7:'7',NUMBER_8:'8',NUMBER_9:'9',
+  // Space / enter / editing
+  SPACE:'Space',SPC:'Space',ENTER:'↵',RET:'↵',ENT:'↵',
+  BSPC:'⌫',BKSP:'⌫',BACKSPACE:'⌫',DEL:'Del',TAB:'Tab',ESC:'Esc',
+  // Modifiers - use text labels (Mac-style ⌃⇧⌥⌘ are visually too close to
+  // punctuation characters like ^ in many fonts, causing confusion between
+  // e.g. LCTL on a thumb and CARET on an alpha key).
+  LGUI:'Cmd',RGUI:'Cmd',LWIN:'Cmd',RWIN:'Cmd',LMETA:'Cmd',RMETA:'Cmd',
+  LALT:'Alt',RALT:'Alt',
+  LSHFT:'Shift',RSHFT:'Shift',LSFT:'Shift',RSFT:'Shift',
+  LCTRL:'Ctrl',RCTRL:'Ctrl',LCTL:'Ctrl',RCTL:'Ctrl',
+  // Navigation
+  LEFT:'←',RIGHT:'→',UP:'↑',DOWN:'↓',
+  HOME:'Home',END:'End',PG_UP:'PgUp',PG_DN:'PgDn',
+  // Punctuation - standard ZMK names + common aliases
+  SEMI:';',SCLN:';',COLON:':',COLN:':',
+  SQT:"'",APOS:"'",DQT:'"',
+  COMMA:',',DOT:'.',FSLH:'/',BSLH:'\\',NON_US_BSLH:'\\',
+  LBKT:'[',RBKT:']',LBRC:'{',RBRC:'}',LPAR:'(',RPAR:')',LPRN:'(',RPRN:')',
+  MINUS:'-',UNDER:'_',PLUS:'+',KPLS:'+',
+  EQUAL:'=',EQL:'=',KP_EQUAL:'=',
+  GRAVE:'`',TILDE:'~',TILDE2:'~',
+  EXCL:'!',BANG:'!',AT:'@',ATSN:'@',
+  HASH:'#',NON_US_HASH:'#',DLLR:'$',
+  PRCNT:'%',PRCT:'%',CARET:'^',CRRT:'^',
+  AMPS:'&',STAR:'*',ASTRK:'*',KMLT:'*',
+  PIPE:'|',PIPE2:'|',
+  LT:'<',GT:'>',QMARK:'?',QUESTION:'?',QUES:'?',
+  // Function keys
+  F1:'F1',F2:'F2',F3:'F3',F4:'F4',F5:'F5',F6:'F6',
+  F7:'F7',F8:'F8',F9:'F9',F10:'F10',F11:'F11',F12:'F12',
+  // Media / system
+  C_MUTE:'Mute',C_VOL_UP:'Vol+',C_VOL_DN:'Vol−',
+  C_PP:'⏯',C_NEXT:'⏭',C_PREV:'⏮',C_BRI_UP:'Bri+',C_BRI_DN:'Bri−',
+  C_PWR:'Pwr',PSCRN:'PrtSc',CAPS:'Caps',INS:'Ins',SLCK:'ScLk',
+  // Numpad
+  KP_N0:'N0',KP_N1:'N1',KP_N2:'N2',KP_N3:'N3',KP_N4:'N4',
+  KP_N5:'N5',KP_N6:'N6',KP_N7:'N7',KP_N8:'N8',KP_N9:'N9',
+  KP_PLUS:'N+',KP_MINUS:'N−',KP_MULTIPLY:'N×',KP_DIVIDE:'N÷',
+  KP_ENTER:'N↵',KP_DOT:'N.',
+  // Locale-specific shifted keys (UK layout etc.)
+  'LS(NUMBER_3)':'£','LS(N3)':'£',
+};
+
+// Modifier wrapper chars for LS() / LC() / LA() / LG() etc.
+const MOD_CHAR = {S:'⇧',C:'⌃',A:'⌥',G:'⌘',M:'⌘'};
+
+function kl(k){
+  if(KL[k] !== undefined) return KL[k];
+  // Handle ZMK modifier wrappers: LS(key), RS(key), LC(key), LA(key), LG(key) …
+  const modM = k.match(/^(?:L|R)([SCAGM])\((.+)\)$/i);
+  if(modM){
+    const mod = MOD_CHAR[modM[1].toUpperCase()] || modM[1];
+    const inner = kl(modM[2]); // recurse so LS(NUMBER_3) → kl('NUMBER_3') → '3'
+    return mod + inner;
+  }
+  return k.replace(/_/g,' ');
+}
+
+// Layer index → display name, populated per-render from the parsed layers so that
+// &mo/&to/&lt etc. read as "MO Num" rather than "MO 7".
+let LAYER_NAMES = [];
+// Physical key geometry parsed from any zmk,physical-layout `keys` in the keymap
+// (each = [{x,y,w,h} in centi-key-units]). Lets us draw the actual board to scale.
+let PHYS_LAYOUTS = [];
+// Physical layouts discovered by scanning the loaded repo's files (tier B-lite),
+// for boards whose keymap doesn't inline the layout. Cached per repo.
+let REPO_LAYOUTS = [];
+let REPO_LAYOUTS_KEY = null;
+// Layouts fetched from ZMK core for the current board (tier B-full).
+let ZMK_LAYOUTS = [];
+function layerName(n){ const nm = LAYER_NAMES[+n]; return (nm!=null && nm!=='') ? nm : String(n); }
+function layerLabel(n){ const nm = LAYER_NAMES[+n]; return (nm!=null && nm!=='') ? nm : ('L'+n); }
+
+// ── Binding → label & type ───────────────────────────────────────────────────
+function translate(b){
+  if(!b) return {label:'',type:'std'};
+  b = b.trim();
+  if(b==='&trans') return {label:'▽',type:'trans'};
+  if(b==='&none')  return {label:'✗',type:'none'};
+  if(b==='&bootloader') return {label:'Boot',type:'system'};
+  if(b==='&reset'||b==='&sys_reset') return {label:'Reset',type:'system'};
+  if(b==='&bt BT_CLR'||b==='&bt BT_CLR_ALL') return {label:'BT\nClr',type:'system'};
+
+  let m;
+  if((m=b.match(/^&kp\s+(.+)$/)))      return {label:kl(m[1].trim()),type:'std'};
+  if((m=b.match(/^&mo\s+(\d+)$/)))     return {label:'MO '+layerName(m[1]),type:'layer'};
+  if((m=b.match(/^&to\s+(\d+)$/)))     return {label:'TO '+layerName(m[1]),type:'layer'};
+  if((m=b.match(/^&tog\s+(\d+)$/)))    return {label:'TG '+layerName(m[1]),type:'layer'};
+  if((m=b.match(/^&sl\s+(\d+)$/)))     return {label:'SL '+layerName(m[1]),type:'sticky'};
+  if((m=b.match(/^&lt\s+(\d+)\s+(.+)$/))) return {label:layerLabel(m[1])+'\n'+kl(m[2].trim()),type:'modtap'};
+  if((m=b.match(/^&mt\s+(\S+)\s+(.+)$/))) return {label:kl(m[1])+'↓\n'+kl(m[2].trim()),type:'modtap'};
+  if((m=b.match(/^&sk\s+(.+)$/)))      return {label:'SK\n'+kl(m[1].trim()),type:'sticky'};
+  if((m=b.match(/^&bt\s+BT_SEL\s+(\d+)$/))) return {label:'BT '+m[1],type:'system'};
+  if((m=b.match(/^&bt\s+(.+)$/)))      return {label:m[1].replace('BT_','BT '),type:'system'};
+  if((m=b.match(/^&out\s+(.+)$/)))     return {label:m[1].replace('OUT_',''),type:'system'};
+  if(b.startsWith('&rgb_ug'))          return {label:'RGB',type:'system'};
+  if(b.startsWith('&ext_power'))       return {label:'Pwr',type:'system'};
+
+  // Mouse-emulation bindings (ZMK_POINTING)
+  // &mkp <button>: mouse button press (LCLK, RCLK, MCLK, MB4, MB5)
+  if((m=b.match(/^&mkp\s+(\S+)$/))){
+    const btnLabel = {
+      'LCLK':'L', 'MB1':'L',
+      'RCLK':'R', 'MB2':'R',
+      'MCLK':'M', 'MB3':'M',
+      'MB4':'4', 'MB5':'5',
+    }[m[1].trim()] || m[1].trim();
+    return {label: btnLabel + '\nClick', type:'mouse'};
+  }
+  // &mmv <move>: mouse movement. Standard macros MOVE_UP/DOWN/LEFT/RIGHT,
+  // or MOVE(x,y) with explicit values (used for fast/slow custom-speed bindings).
+  if((m=b.match(/^&mmv\s+(.+)$/))){
+    const arg = m[1].trim();
+    let dir = '?';
+    if(arg==='MOVE_UP')         dir = '↑';
+    else if(arg==='MOVE_DOWN')  dir = '↓';
+    else if(arg==='MOVE_LEFT')  dir = '←';
+    else if(arg==='MOVE_RIGHT') dir = '→';
+    else {
+      const mv = arg.match(/^MOVE\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)$/);
+      if(mv){
+        const x = parseInt(mv[1],10), y = parseInt(mv[2],10);
+        if(x < 0)      dir = '←';
+        else if(x > 0) dir = '→';
+        else if(y < 0) dir = '↑';
+        else if(y > 0) dir = '↓';
+      }
+    }
+    return {label: dir + '\nMouse', type:'mouse'};
+  }
+  // &msc <scroll>: mouse scroll. SCRL_UP/DOWN/LEFT/RIGHT.
+  if((m=b.match(/^&msc\s+(.+)$/))){
+    const arg = m[1].trim();
+    let dir = '?';
+    if(arg==='SCRL_UP')         dir = '↑';
+    else if(arg==='SCRL_DOWN')  dir = '↓';
+    else if(arg==='SCRL_LEFT')  dir = '←';
+    else if(arg==='SCRL_RIGHT') dir = '→';
+    return {label: dir + '\nScroll', type:'mouse'};
+  }
+
+  // Custom tap-dance behavior (e.g. miryoku &u_to_U_NUM = double-tap -> &to 7).
+  // Render its meaningful (non-&none) taps; a single one renders as that binding.
+  if((m=b.match(/^&(\w+)$/))){
+    const cb = CUSTOM_BEHAVIORS.get(m[1]);
+    if(cb && cb.type==='tap-dance'){
+      const meaningful = cb.bindings.filter(x=>x && x!=='&none');
+      if(meaningful.length===1) return translate(meaningful[0]);
+      if(meaningful.length>1) return {label:meaningful.map(x=>translate(x).label.replace(/\n/g,' ')).join(' / '), type:'layer'};
+      return {label:'✗', type:'none'};
+    }
+  }
+
+  // Custom hold-tap behaviors from the keymap's behaviors{} block (e.g. miryoku
+  // &u_mt LGUI A, &u_lt 3 Z). Render by meaning: hold over tap, like stock &mt/&lt.
+  if((m=b.match(/^&(\w+)\s+(.+)$/))){
+    const cb = CUSTOM_BEHAVIORS.get(m[1]);
+    if(cb && cb.type==='hold-tap'){
+      const params = m[2].trim().split(/\s+/);
+      const tapLabel = translate((cb.tap+' '+params.slice(1).join(' ')).trim()).label.replace(/\n/g,' ');
+      const holdLabel = /^&(mo|to|tog|sl)$/.test(cb.hold)
+        ? layerLabel(params[0])                                                  // layer-tap -> layer name / L<n>
+        : translate((cb.hold+' '+params[0]).trim()).label.replace(/\n/g,' ')+'↓'; // mod-tap -> MOD-down
+      return {label: holdLabel+'\n'+tapLabel, type:'modtap'};
+    }
+  }
+
+  return {label:b.replace(/^&/,'').substring(0,10),type:'std'};
+}
+
+// ── Parser: strip comments ───────────────────────────────────────────────────
+function stripComments(t){
+  return t.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*/g,'');
+}
+
+// Split raw bindings content (<…>) into individual &-prefixed tokens
+function splitBindings(content){
+  const out=[];
+  // Split on & boundaries
+  const parts = content.split(/(?=&)/);
+  for(let p of parts){
+    p = p.replace(/\s+/g,' ').trim();
+    if(p.startsWith('&')) out.push(p);
+  }
+  return out;
+}
+
+// ── Parse layers ─────────────────────────────────────────────────────────────
+function parseLayers(text){
+  text = stripComments(text);
+
+  // Layers are child nodes of the `keymap { }` node, while combos, behaviours and
+  // macros sit in sibling nodes. Scoping the scan to the keymap node lets a bindings
+  // block be recognised as a layer by position alone, so small boards (macropads,
+  // numpads) work without a key-count floor. If the node can't be located (a partial
+  // paste, say), fall back to the whole file with a floor that stops combos and
+  // behaviours from being mistaken for layers.
+  let floor = 30;
+  const km = text.match(/\bkeymap\s*\{/);
+  if(km){
+    let depth = 1, i = km.index + km[0].length;
+    while(i < text.length && depth > 0){ const c = text[i++]; if(c === '{') depth++; else if(c === '}') depth--; }
+    if(depth === 0){ text = text.slice(km.index + km[0].length, i - 1); floor = 1; }
+  }
+
+  const layers=[];
+  const SKIP = new Set(['compatible','keymap','behaviors','macros','combos','chosen']);
+
+  // Match "bindings =" then capture everything until the closing ">;"
+  // Handles all of:
+  //   bindings = <...>;
+  //   bindings = <\n...\n>;
+  //   bindings =\n<...\n>;    (newline before <)
+  //   bindings =\n...\n>;     (< on same line as first binding token)
+  const bindRe = /\bbindings\s*=\s*/g;
+  let bm;
+  while((bm = bindRe.exec(text)) !== null){
+    // Skip sensor-bindings, key-bindings, etc.
+    if(bm.index > 0 && /[\w-]/.test(text[bm.index - 1])) continue;
+
+    let pos = bm.index + bm[0].length;
+    // Skip any whitespace (incl. newlines) before the content
+    while(pos < text.length && /\s/.test(text[pos])) pos++;
+
+    // Optionally consume opening "<"
+    const hasAngle = text[pos] === '<';
+    const contentStart = hasAngle ? pos + 1 : pos;
+
+    // Find the closing ">" which must be followed (with optional whitespace) by ";"
+    // Search forward for ">  *;" pattern
+    let endPos = -1;
+    let searchFrom = contentStart;
+    while(searchFrom < text.length){
+      const gt = text.indexOf('>', searchFrom);
+      if(gt === -1) break;
+      // Check that what follows is optional-whitespace then ";"
+      const after = text.slice(gt + 1).match(/^\s*;/);
+      if(after){
+        endPos = gt;
+        break;
+      }
+      searchFrom = gt + 1;
+    }
+    if(endPos === -1) continue;
+
+    const content = text.slice(contentStart, endPos);
+    const bindings = splitBindings(content);
+    if(bindings.length < floor) continue;
+    // Rows inferred from the keymap's own line breaks (authors write one row per
+    // line). Used as the generic fallback so any board - more cols/rows than a
+    // corne - renders with the right shape when there's no physical-layout.
+    const rows = content.split('\n').map(l=>splitBindings(l)).filter(r=>r.length);
+
+    // Look backwards for the innermost enclosing "word {" with no "}" after it
+    const before = text.slice(0, bm.index);
+    const nm = before.match(/(\w+)\s*\{[^{}]*$/);
+    if(!nm) continue;
+    const name = nm[1];
+    if(SKIP.has(name)) continue;
+
+    layers.push({name: fmtName(name), bindings, rows});
+  }
+  return layers;
+}
+
+function fmtName(n){
+  return n.replace(/_layer$/i,'').replace(/_/g,' ')
+           .replace(/\b\w/g,c=>c.toUpperCase()).trim() || n;
+}
+
+// ── Parse combos ─────────────────────────────────────────────────────────────
+function parseCombos(text){
+  text = stripComments(text);
+  const combos=[];
+
+  // Find the combos { } block using brace-depth tracking (regex stops at first })
+  const startM = text.match(/\bcombos\s*\{/);
+  if(!startM) return combos;
+  let depth=1, i=startM.index+startM[0].length;
+  while(i<text.length && depth>0){
+    if(text[i]==='{') depth++;
+    else if(text[i]==='}') depth--;
+    i++;
+  }
+  const block = text.slice(startM.index+startM[0].length, i-1);
+
+  // Find each child combo block inside, again using brace-depth
+  const childRe = /(\w+)\s*\{/g;
+  let cm;
+  while((cm=childRe.exec(block))!==null){
+    const name=cm[1];
+    if(name==='compatible') continue;
+    let d=1, j=cm.index+cm[0].length;
+    while(j<block.length && d>0){
+      if(block[j]==='{') d++;
+      else if(block[j]==='}') d--;
+      j++;
+    }
+    const body=block.slice(cm.index+cm[0].length, j-1);
+
+    const posM = body.match(/key-positions\s*=\s*<([^>]+)>/);
+    const bndM = body.match(/bindings\s*=\s*<([^>]+)>/);
+    const layM = body.match(/layers\s*=\s*<([^>]+)>/);
+    if(posM && bndM){
+      const positions=posM[1].trim().split(/\s+/).map(Number);
+      const rawBind=bndM[1].trim().replace(/\s+/g,' ');
+      const binding=rawBind.startsWith('&') ? rawBind : '&'+rawBind;
+      const layers=layM ? layM[1].trim().split(/\s+/).map(Number) : null;
+      combos.push({name,positions,binding,layers});
+    }
+  }
+  return combos;
+}
+
+// ── Layout maps ──────────────────────────────────────────────────────────────
+// 43 bindings: outer skip at pos 0,6,12,18,24,30,36  (spec layout)
+const LAYOUT_43 = {
+  leftRows:  [[1,2,3,4,5],[13,14,15,16,17],[25,26,27,28,29]],
+  rightRows: [[7,8,9,10,11],[19,20,21,22,23],[31,32,33,34,35]],
+  leftThumb: [37,38,39], rightThumb:[40,41,42],
+};
+// 42 bindings: standard CRKBD - outer skip at row-END (0 and 11 per row)
+//   Row skips: left-outer=0,12,24  right-outer=11,23,35
+//   Left: 1-5 / Right: 6-10  |  Left: 13-17 / Right: 18-22  |  Left: 25-29 / Right: 30-34
+//   Thumbs: 36-38 left, 39-41 right (no outer cols)
+const LAYOUT_42 = {
+  leftRows:  [[1,2,3,4,5],[13,14,15,16,17],[25,26,27,28,29]],
+  rightRows: [[6,7,8,9,10],[18,19,20,21,22],[30,31,32,33,34]],
+  leftThumb: [36,37,38], rightThumb:[39,40,41],
+};
+// 36 bindings: pure 36-key, no outer cols - 5 per side per row
+//   Row 1: left 0-4, right 5-9 | Row 2: left 10-14, right 15-19 | Row 3: left 20-24, right 25-29
+//   Thumbs: 30-32 left, 33-35 right
+const LAYOUT_36 = {
+  leftRows:  [[0,1,2,3,4],[10,11,12,13,14],[20,21,22,23,24]],
+  rightRows: [[5,6,7,8,9],[15,16,17,18,19],[25,26,27,28,29]],
+  leftThumb: [30,31,32], rightThumb:[33,34,35],
+};
+// 34 bindings: 3x5 + 2 thumbs per half (sweep / ferris / cradio / a_dux, miryoku default)
+const LAYOUT_34 = {
+  leftRows:  [[0,1,2,3,4],[10,11,12,13,14],[20,21,22,23,24]],
+  rightRows: [[5,6,7,8,9],[15,16,17,18,19],[25,26,27,28,29]],
+  leftThumb: [30,31], rightThumb:[32,33],
+};
+
+// ErgoQuill: 5 cols + 4 thumbs per half = 38 bindings. Binding-index order
+// matches the ZMK matrix_transform in Kit-314/ErgoQuill_Firmware (ergoquill.dtsi):
+//   row0  0-4 L (pinky..inner)  5-9 R (inner..pinky)
+//   row1 10-14 / 15-19   row2 20-24 / 25-29
+//   thumbs L 30-33 (above_mid,out,mid,inn)  R 34-37 (inn,mid,out,above_mid)
+// These use the coordinate-based renderer (renderLayerEQ + EQ_MAP), not the flat
+// leftRows/thumb model - `coord` flags that and selects the variant.
+const LAYOUT_EQ     = { coord:'std' };
+const LAYOUT_EQ_JOY = { coord:'joy' };
+
+// Known corne-family / ErgoQuill shapes, matched on EXACT binding count only.
+// Anything else returns null -> the row-inference fallback (renderLayerRows), so
+// boards bigger/different than a corne aren't force-fit into a corne shape.
+function getLayout(n){
+  if(n===38) return LAYOUT_EQ;       // ErgoQuill (standard)
+  if(n===37) return LAYOUT_EQ_JOY;   // ErgoQuill Joy
+  if(n===43) return LAYOUT_43;
+  if(n===42) return LAYOUT_42;
+  if(n===36) return LAYOUT_36;
+  if(n>=30 && n<=34) return LAYOUT_34;  // 34-key splits (sweep/cradio/ferris/a_dux)
+  return null;
+}
+
+// ── Parse behaviors (mod-morphs) ─────────────────────────────────────────────
+// Returns Map<behaviorName, {type:'mod-morph', tap:bindingStr, morph:bindingStr}>.
+// Used so &dot_comma renders as "." with "," underneath, instead of truncated
+// "dot_c..." text.
+let CUSTOM_BEHAVIORS = new Map();
+
+function parseBehaviors(text){
+  text = stripComments(text);
+  const result = new Map();
+
+  // Find each behaviors { ... } block (there may be multiple in some configs).
+  const startRe = /\bbehaviors\s*\{/g;
+  let startM;
+  while((startM = startRe.exec(text)) !== null){
+    let depth=1, i=startM.index+startM[0].length;
+    while(i<text.length && depth>0){
+      if(text[i]==='{') depth++;
+      else if(text[i]==='}') depth--;
+      i++;
+    }
+    const block = text.slice(startM.index+startM[0].length, i-1);
+
+    // Each child: optionally "label: name {" or just "name {"
+    const childRe = /(?:(\w+)\s*:\s*)?(\w+)\s*\{/g;
+    let cm;
+    while((cm = childRe.exec(block)) !== null){
+      const name = cm[1] || cm[2];
+      if(name==='compatible') continue;
+
+      let d=1, j=cm.index+cm[0].length;
+      while(j<block.length && d>0){
+        if(block[j]==='{') d++;
+        else if(block[j]==='}') d--;
+        j++;
+      }
+      const body = block.slice(cm.index+cm[0].length, j-1);
+
+      const compatM = body.match(/compatible\s*=\s*"([^"]+)"/);
+      if(!compatM) continue;
+      const compat = compatM[1];
+
+      // Extract the <...> groups of the bindings property (shared by the types below).
+      const bndsM = body.match(/bindings\s*=\s*([^;]+);/);
+      const groups = [];
+      if(bndsM){ const gRe=/<([^>]+)>/g; let gm;
+        while((gm=gRe.exec(bndsM[1]))!==null){ let g=gm[1].trim().replace(/\s+/g,' '); if(!g.startsWith('&'))g='&'+g; groups.push(g); } }
+
+      if(compat === 'zmk,behavior-mod-morph' && groups.length >= 2){
+        // bindings = <&kp DOT>, <&kp COMMA>;  (tap / shifted)
+        result.set(name, {type:'mod-morph', tap:groups[0], morph:groups[1]});
+      } else if(compat === 'zmk,behavior-hold-tap' && groups.length >= 2){
+        // bindings = <&kp>, <&kp>;  -> invoked as `&name HOLD_PARAM TAP_PARAM`.
+        // e.g. miryoku &u_mt LGUI A (mod-tap), &u_lt 3 Z (layer-tap).
+        result.set(name, {type:'hold-tap', hold:groups[0], tap:groups[1]});
+      } else if(compat === 'zmk,behavior-tap-dance' && groups.length >= 1){
+        // bindings = <&none>, <&to 7>;  -> tap N times. e.g. miryoku &u_to_U_NUM.
+        result.set(name, {type:'tap-dance', bindings:groups});
+      }
+    }
+  }
+  return result;
+}
+
+// ── Parse key_overrides ──────────────────────────────────────────────────────
+// Returns Map<positionIndex → shiftLabel> for shift overrides.
+// The actual ZMK key-overrides format uses:
+//   key-position = <N>   - physical key index in the bindings array
+//   bindings = <&kp ...> - the replacement output when shift is held
+//   mods = <(MOD_LSFT|MOD_RSFT)>
+function parseKeyOverrides(text){
+  text = stripComments(text);
+  const overrides = new Map(); // position number → shift label string
+
+  const startM = text.match(/\bkey[_-]overrides\s*\{/);
+  if(!startM) return overrides;
+
+  let depth=1, i=startM.index+startM[0].length;
+  while(i<text.length && depth>0){
+    if(text[i]==='{') depth++;
+    else if(text[i]==='}') depth--;
+    i++;
+  }
+  const block = text.slice(startM.index+startM[0].length, i-1);
+
+  // Each child block: handles "name {" and "label: name {"
+  const childRe = /(?:\w+\s*:\s*)?\w+\s*\{/g;
+  let cm;
+  while((cm=childRe.exec(block))!==null){
+    const word = cm[0].match(/(\w+)\s*\{/)?.[1];
+    if(!word || word==='compatible') continue;
+
+    let d=1, j=cm.index+cm[0].length;
+    while(j<block.length && d>0){
+      if(block[j]==='{') d++;
+      else if(block[j]==='}') d--;
+      j++;
+    }
+    const body = block.slice(cm.index+cm[0].length, j-1);
+
+    // key-position = <N>  identifies which physical key is overridden
+    const posM  = body.match(/\bkey-position\s*=\s*<([^>]+)>/);
+    // bindings = <&kp ...>  is the replacement output
+    const bndM  = body.match(/\bbindings\s*=\s*<([^>]+)>/);
+    const modsM = body.match(/\bmods\s*=\s*<([^>]+)>/);
+    if(!posM || !bndM) continue;
+
+    const modsStr = modsM ? modsM[1] : '';
+    const isShift = !modsStr || /LSFT|RSFT|SHFT/.test(modsStr);
+    if(!isShift) continue;
+
+    const pos = parseInt(posM[1].trim(), 10);
+    if(isNaN(pos)) continue;
+
+    const norm = s => { s=s.trim().replace(/\s+/g,' '); return s.startsWith('&')?s:'&'+s; };
+    const {label} = translate(norm(bndM[1]));
+    overrides.set(pos, label);
+  }
+  return overrides;
+}
+
+// ── Standard shift map ───────────────────────────────────────────────────────
+// Maps ZMK key codes to their standard US-keyboard shifted character.
+// key_overrides always take priority over these defaults.
+const STANDARD_SHIFT = {
+  N1:'!', N2:'@', N3:'#', N4:'$', N5:'%', N6:'^', N7:'&', N8:'*', N9:'(', N0:')',
+  NUMBER_1:'!', NUMBER_2:'@', NUMBER_3:'#', NUMBER_4:'$', NUMBER_5:'%',
+  NUMBER_6:'^', NUMBER_7:'&', NUMBER_8:'*', NUMBER_9:'(', NUMBER_0:')',
+  MINUS:'_',  EQUAL:'+', EQL:'+',
+  LBKT:'{',   RBKT:'}',
+  SEMI:':',   SCLN:':',
+  SQT:'"',    APOS:'"',
+  GRAVE:'~',
+  COMMA:'<',  DOT:'>',  FSLH:'?',
+};
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Plain-English explanation of a binding, used as the hover tooltip (title).
+// Reuses translate()/kl()/layerName() and resolves custom behaviors.
+function explain(b){
+  if(!b) return '';
+  b=b.trim(); let m;
+  if(b==='&trans') return 'Transparent - falls through to whatever this key is on the layer below';
+  if(b==='&none') return 'Disabled - does nothing';
+  if(b==='&bootloader') return 'Reset into the bootloader (USB flashing mode)';
+  if(b==='&sys_reset'||b==='&reset') return 'Reset the keyboard';
+  if((m=b.match(/^&kp\s+(.+)$/)))         return 'Press '+kl(m[1].trim());
+  if((m=b.match(/^&mt\s+(\S+)\s+(.+)$/))) return `Hold for ${kl(m[1])}, tap for ${kl(m[2].trim())} (mod-tap)`;
+  if((m=b.match(/^&lt\s+(\d+)\s+(.+)$/))) return `Hold for the ${layerName(m[1])} layer, tap for ${kl(m[2].trim())} (layer-tap)`;
+  if((m=b.match(/^&mo\s+(\d+)$/)))        return `${layerName(m[1])} layer while held (momentary)`;
+  if((m=b.match(/^&to\s+(\d+)$/)))        return `Switch to the ${layerName(m[1])} layer`;
+  if((m=b.match(/^&tog\s+(\d+)$/)))       return `Toggle the ${layerName(m[1])} layer on/off`;
+  if((m=b.match(/^&sl\s+(\d+)$/)))        return `Sticky: ${layerName(m[1])} layer for the next key`;
+  if((m=b.match(/^&sk\s+(.+)$/)))         return `Sticky: ${kl(m[1].trim())} for the next key`;
+  if((m=b.match(/^&bt\s+(.+)$/)))         return 'Bluetooth: '+m[1].trim().replace('BT_','');
+  if((m=b.match(/^&out\s+(.+)$/)))        return 'Output: '+m[1].trim().replace('OUT_','');
+  if(b.startsWith('&rgb_ug'))             return 'RGB underglow control';
+  if(b.startsWith('&ext_power'))          return 'External power (LEDs / peripherals) control';
+  if((m=b.match(/^&mkp\s+(\S+)$/)))       return ({LCLK:'Left',RCLK:'Right',MCLK:'Middle',MB4:'Back',MB5:'Forward'}[m[1]]||m[1])+' mouse click';
+  if(b.startsWith('&mmv'))                return 'Move the mouse pointer';
+  if(b.startsWith('&msc'))                return 'Scroll';
+  if((m=b.match(/^&(\w+)(?:\s+(.+))?$/))){
+    const cb=CUSTOM_BEHAVIORS.get(m[1]); const p=(m[2]||'').trim().split(/\s+/).filter(Boolean);
+    if(cb && cb.type==='mod-morph')
+      return `Tap: ${translate(cb.tap).label.replace(/\n/g,' ')} · with Shift: ${translate(cb.morph).label.replace(/\n/g,' ')} (mod-morph)`;
+    if(cb && cb.type==='hold-tap'){
+      const isLayer=/^&(mo|to|tog|sl)$/.test(cb.hold);
+      const hold=isLayer?`the ${layerName(p[0])} layer`:translate((cb.hold+' '+(p[0]||'')).trim()).label.replace(/\n/g,' ');
+      const tap=translate((cb.tap+' '+p.slice(1).join(' ')).trim()).label.replace(/\n/g,' ');
+      return `Hold for ${hold}, tap for ${tap} (${isLayer?'layer-tap':'mod-tap'})`;
+    }
+    if(cb && cb.type==='tap-dance')
+      return 'Tap-dance - '+cb.bindings.map((x,i)=>`${i+1}×: ${explain(x)}`).join(' · ');
+  }
+  return b;  // fallback: show the raw binding
+}
+
+function renderKey(binding, thumb, overrideLabel, extraStyle, idx){
+  // If the binding references a custom mod-morph behavior (e.g., &dot_comma),
+  // unwrap it: use the tap binding for the main label and the morph binding
+  // as a shift indicator. This avoids displaying the truncated behavior name.
+  let actualBinding = binding;
+  let morphShiftLabel = null;
+  const customM = binding && binding.match(/^&(\w+)$/);
+  if(customM){
+    const custom = CUSTOM_BEHAVIORS.get(customM[1]);
+    if(custom && custom.type === 'mod-morph'){
+      actualBinding = custom.tap;
+      morphShiftLabel = translate(custom.morph).label;
+    }
+  }
+
+  const {label,type} = translate(actualBinding);
+  const lines = label.split('\n');
+  let cls = 'key';
+  if(thumb){
+    cls += ' thumb';
+    if(type==='std'||type==='trans'||type==='none') cls+=' k-thumb';
+    else cls+=` k-thumb k-${type}`;
+  } else {
+    cls += type==='std' ? ' k-std' : ` k-${type}`;
+  }
+  let inner = lines.map((l,i)=>`<span class="${i?'bot':'top'}">${esc(l)}</span>`).join('');
+
+  // Determine the shift label to show below the main label on simple standard keys.
+  // Priority: key_override > mod-morph morph > standard shift map > nothing.
+  if(type==='std' && lines.length===1){
+    let shiftLabel = overrideLabel; // key_override (blue)
+    let shiftCls   = 'bot-ov';
+    if(!shiftLabel && morphShiftLabel){
+      shiftLabel = morphShiftLabel; // mod-morph (also blue - it's a real override)
+      shiftCls = 'bot-ov';
+    }
+    if(!shiftLabel){
+      // Fall back to standard keyboard shift pairing
+      const kpM = actualBinding && actualBinding.match(/^&kp\s+(\S+)$/);
+      if(kpM) shiftLabel = STANDARD_SHIFT[kpM[1].trim()];
+      shiftCls = 'bot-shift'; // different style for standard shifts
+    }
+    if(shiftLabel) inner += `<span class="${shiftCls}">${esc(shiftLabel)}</span>`;
+  }
+
+  let title = explain(binding);
+  if(overrideLabel) title += ` · with Shift → ${overrideLabel}`;
+  if(binding && title !== binding.trim()) title += `\n${binding.trim()}`;  // raw binding for reference
+  const styleAttr = extraStyle ? ` style="${extraStyle}"` : '';
+  // In edit mode (and only for structurally-editable keymaps) tag each key with
+  // its layer + binding index so clicks map back to the document model.
+  let editAttr = '';
+  if(typeof EDIT_MODE !== 'undefined' && EDIT_MODE && EDIT_STRUCTURED
+     && idx != null && idx !== 'joy' && CUR_LI != null)
+    editAttr = ` data-li="${CUR_LI}" data-ki="${idx}"`;
+  return `<div class="${cls}"${styleAttr}${editAttr} data-tip="${esc(title)}">${inner}</div>`;
+}
+
+// Instant, styled hover tooltip for keys - replaces the slow/plain native `title`.
+// Reads each key's data-tip ("plain-English explanation\nraw binding") via event
+// delegation, so it works for every rendered board (coords + fallback) and survives
+// re-renders. pointer-events:none so it never blocks edit-mode clicks.
+(function(){
+  let tip=null;
+  function ensure(){ if(!tip){ tip=document.createElement('div'); tip.id='keytip'; document.body.appendChild(tip);} return tip; }
+  function place(t,x,y){ const pad=12,r=t.getBoundingClientRect(); let l=x+14,tp=y+16;
+    if(l+r.width>innerWidth-pad) l=x-r.width-14; if(tp+r.height>innerHeight-pad) tp=y-r.height-16;
+    t.style.left=Math.max(pad,l)+'px'; t.style.top=Math.max(pad,tp)+'px'; }
+  function show(el,x,y){ const txt=el.getAttribute('data-tip'); if(!txt){ hide(); return; }
+    const t=ensure(), p=txt.split('\n');
+    t.innerHTML='<span class="kt-main">'+esc(p[0])+'</span>'+(p[1]?'<span class="kt-raw">'+esc(p.slice(1).join(' '))+'</span>':'');
+    t.style.display='block'; place(t,x,y); }
+  function hide(){ if(tip) tip.style.display='none'; }
+  document.addEventListener('mouseover', e=>{ const k=e.target.closest&&e.target.closest('.key[data-tip]'); if(k) show(k,e.clientX,e.clientY); });
+  document.addEventListener('mousemove', e=>{ if(!tip||tip.style.display!=='block') return; const k=e.target.closest&&e.target.closest('.key[data-tip]'); if(k) place(tip,e.clientX,e.clientY); else hide(); });
+  document.addEventListener('mouseout', e=>{ const k=e.target.closest&&e.target.closest('.key[data-tip]'); if(k){ const to=e.relatedTarget; if(!to||!to.closest||!to.closest('.key[data-tip]')) hide(); } });
+  window.addEventListener('scroll', hide, true);
+})();
+
+// A non-key cell standing in for the analog joystick (ErgoQuill Joy left thumb).
+function renderJoyCell(){
+  return '<div class="key thumb k-joy" data-tip="Analog joystick (Adafruit 2765)">'
+       + '<span class="joy-dot">◉</span><span class="joy-lbl">Joy</span></div>';
+}
+
+// Render one thumb position: the 'joy' sentinel becomes a joystick cell.
+function renderThumb(i, b, ov){
+  if(i==='joy') return renderJoyCell();
+  return renderKey(b[i]||'&trans', true, ov.get(i), undefined, i);
+}
+
+// ── ErgoQuill coordinate-based layout ────────────────────────────────────────
+// Physical key positions (mm; x→right, y→up) from the ergogen config: 5 cols @18mm
+// with cumulative stagger [-12,-3,0,-3,-5.5], 3 rows @17mm, and the 4-key thumb
+// cluster - out/mid/inn arc at -15/-30/-45°, plus thumb_above_mid sitting north of
+// thumb_mid. Rendered absolutely so the visualizer matches the real board.
+function eqLeftRoles(){
+  const colx={pinky:0,ring:18,middle:36,index:54,inner:72};
+  const stag={pinky:-12,ring:-3,middle:0,index:-3,inner:-5.5};
+  const rowy={top:34,home:17,bottom:0};
+  const R={};
+  for(const c in colx) for(const rw in rowy) R[`${c}_${rw}`]={x:colx[c],y:rowy[rw]+stag[c],r:0};
+  R.thumb_out       = {x:62.9,  y:-27.08, r:-15};
+  R.thumb_mid       = {x:85.5,  y:-31.78, r:-30};
+  R.thumb_inn       = {x:108.1, y:-36.48, r:-45};
+  R.thumb_above_mid = {x:90.9,  y:-12.78, r:-15};
+  return R;
+}
+// binding-index → physical role per half, matching the firmware matrix_transform.
+// thumbs: L = above_mid,out,mid,inn (30-33); R = inn,mid,out,above_mid (34-37).
+// Joy: left drops above_mid for the joystick; left thumbs are out,mid,inn (30-32).
+const EQ_MAP = {
+  std: {
+    left:  [[0,'pinky_top'],[1,'ring_top'],[2,'middle_top'],[3,'index_top'],[4,'inner_top'],
+            [10,'pinky_home'],[11,'ring_home'],[12,'middle_home'],[13,'index_home'],[14,'inner_home'],
+            [20,'pinky_bottom'],[21,'ring_bottom'],[22,'middle_bottom'],[23,'index_bottom'],[24,'inner_bottom'],
+            [30,'thumb_above_mid'],[31,'thumb_out'],[32,'thumb_mid'],[33,'thumb_inn']],
+    right: [[5,'inner_top'],[6,'index_top'],[7,'middle_top'],[8,'ring_top'],[9,'pinky_top'],
+            [15,'inner_home'],[16,'index_home'],[17,'middle_home'],[18,'ring_home'],[19,'pinky_home'],
+            [25,'inner_bottom'],[26,'index_bottom'],[27,'middle_bottom'],[28,'ring_bottom'],[29,'pinky_bottom'],
+            [34,'thumb_inn'],[35,'thumb_mid'],[36,'thumb_out'],[37,'thumb_above_mid']],
+  },
+  joy: {
+    left:  [[0,'pinky_top'],[1,'ring_top'],[2,'middle_top'],[3,'index_top'],[4,'inner_top'],
+            [10,'pinky_home'],[11,'ring_home'],[12,'middle_home'],[13,'index_home'],[14,'inner_home'],
+            [20,'pinky_bottom'],[21,'ring_bottom'],[22,'middle_bottom'],[23,'index_bottom'],[24,'inner_bottom'],
+            ['joy','thumb_above_mid'],[30,'thumb_out'],[31,'thumb_mid'],[32,'thumb_inn']],
+    right: [[5,'inner_top'],[6,'index_top'],[7,'middle_top'],[8,'ring_top'],[9,'pinky_top'],
+            [15,'inner_home'],[16,'index_home'],[17,'middle_home'],[18,'ring_home'],[19,'pinky_home'],
+            [25,'inner_bottom'],[26,'index_bottom'],[27,'middle_bottom'],[28,'ring_bottom'],[29,'pinky_bottom'],
+            [33,'thumb_inn'],[34,'thumb_mid'],[35,'thumb_out'],[36,'thumb_above_mid']],
+  },
+};
+const EQ_S = 2.6;    // px per mm
+const EQ_KS = 16.5;  // key size (mm)
+
+function eqHalf(map, roles, mirror, b, ov){
+  const kpx = EQ_KS*EQ_S, PAD = kpx*0.72;  // PAD ≥ half-diagonal so rotated keys don't clip
+  const pts = map.map(([key,role])=>{
+    let {x,y,r} = roles[role];
+    if(mirror){ x = -x; r = -r; }
+    return {key, role, x, y, r};
+  });
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const w=(maxX-minX)*EQ_S+2*PAD, hgt=(maxY-minY)*EQ_S+2*PAD;
+  let html=`<div class="eq-half" style="width:${w.toFixed(0)}px;height:${hgt.toFixed(0)}px">`;
+  for(const p of pts){
+    const cx=(p.x-minX)*EQ_S+PAD, cy=(maxY-p.y)*EQ_S+PAD;
+    // Positions follow the real board; rotation is intentionally dropped - it
+    // adds nothing for reading a keymap and makes the labels harder to scan.
+    const style=`position:absolute;left:${cx.toFixed(1)}px;top:${cy.toFixed(1)}px;`
+              + `width:${kpx.toFixed(1)}px;height:${kpx.toFixed(1)}px;`
+              + `transform:translate(-50%,-50%)`;
+    if(p.key==='joy')
+      html+=`<div class="key thumb k-joy" style="${style}" data-tip="Analog joystick (Adafruit 2765)"><span class="joy-dot">◉</span></div>`;
+    else
+      html+=renderKey(b[p.key]||'&trans', p.role.startsWith('thumb'), ov.get(p.key), style, p.key);
+  }
+  return html+'</div>';
+}
+
+function renderLayerEQ(bindings, overrides, joy){
+  const roles=eqLeftRoles(), map=joy?EQ_MAP.joy:EQ_MAP.std, ov=overrides||new Map();
+  return '<div class="eq-keyboard">'
+       + eqHalf(map.left,  roles, false, bindings, ov)
+       + '<div class="eq-gap"></div>'
+       + eqHalf(map.right, roles, true,  bindings, ov)
+       + '</div>';
+}
+
+// Parse every `zmk,physical-layout` node's `keys` into [{x,y,w,h}] (centi-units).
+// Key order matches keymap binding order, so we can place any board to scale.
+function parsePhysicalLayouts(text){
+  const layouts=[]; const re=/compatible\s*=\s*"zmk,physical-layout"/g; let m;
+  while((m=re.exec(text))!==null){
+    const km = text.slice(m.index).match(/\bkeys\s*=\s*([\s\S]*?);/);
+    if(!km) continue;
+    const keys=[];
+    for(const g of (km[1].match(/<([^>]*)>/g)||[])){
+      const n=(g.match(/-?\d+/g)||[]).map(Number);   // w h x y rot rx ry (rot=centi-degrees)
+      if(n.length>=4) keys.push({w:n[0], h:n[1], x:n[2], y:n[3], rot:n[4]||0, rx:n[5]||0, ry:n[6]||0});
+    }
+    if(keys.length) layouts.push(keys);
+  }
+  return layouts;
+}
+
+// Tier B-lite: when a keymap doesn't inline its physical-layout, scan the repo's
+// *likely* layout files (.overlay, anything named physical/layout, boards/*.dtsi)
+// for one. Reads come from raw.githubusercontent (CDN, not the rate-limited API);
+// one tree call (usually already cached). Cached per repo; no-op if no candidates.
+async function scanRepoLayouts(src){
+  const key = `${src.owner}/${src.repo}@${src.branch}`;
+  if(REPO_LAYOUTS_KEY === key) return;          // already scanned this repo
+  REPO_LAYOUTS_KEY = key; REPO_LAYOUTS = [];
+  const tr = await githubApi(`https://api.github.com/repos/${src.owner}/${src.repo}/git/trees/${src.branch}?recursive=1`);
+  if(!tr.ok) return;
+  const cands = (tr.json.tree||[]).filter(n => n.type==='blob' && (
+        /physical|layout/i.test(n.path) || /\.overlay$/.test(n.path) ||
+        (/(^|\/)boards\//.test(n.path) && /\.(dtsi|keymap)$/.test(n.path))))
+      .map(n=>n.path).slice(0, 15);
+  if(!cands.length) return;
+  const base = `https://raw.githubusercontent.com/${src.owner}/${src.repo}/${src.branch}/`;
+  const texts = await Promise.all(cands.map(async p => {
+    try { const r = await fetch(base + p.split('/').map(encodeURIComponent).join('/'), {cache:'no-store'}); return r.ok ? await r.text() : ''; }
+    catch(e){ return ''; }
+  }));
+  const found = [];
+  for(let t of texts){
+    if(!/zmk,physical-layout/.test(t)) continue;
+    t = t.replace(/\/\/.*/g,'').replace(/\/\*[\s\S]*?\*\//g,'');  // strip comments
+    found.push(...parsePhysicalLayouts(t));
+  }
+  REPO_LAYOUTS = found;
+}
+
+// Tier B-full: for boards whose layout lives in ZMK core (corne, lily58, kyria…),
+// fetch the matching layout from zmkfirmware/zmk by board name (from the keymap
+// filename). Fixes standard boards + macro-expanded configs (miryoku) that have
+// no inline/repo layout. One cached tree call; layout files via raw CDN.
+let ZMK_TREE = null;             // cached list of ZMK-core layout .dtsi paths
+const ZMK_BOARD_CACHE = new Map(); // board -> parsed layouts
+// Board filenames often carry a revision/variant suffix the ZMK-core layout file
+// doesn't (ferris_rev02 → ferris, corne_rev1 → corne, kyria_rev3 → kyria). Generate
+// progressively-stripped candidate names to match against. Separators required so real
+// names with trailing digits (lily58, bdn9) aren't mangled.
+function boardCandidates(board){
+  const out = new Set([board]);
+  const strip = s => s.replace(/[_-]rev\d+$/,'').replace(/[_-]v\d+$/,'').replace(/[_-]\d+$/,'');
+  let b = board, prev;
+  do { prev = b; b = strip(b); out.add(b); } while(b !== prev);
+  return [...out].filter(Boolean);
+}
+async function scanZmkCoreLayout(board){
+  ZMK_LAYOUTS = [];
+  if(!board) return;
+  if(ZMK_BOARD_CACHE.has(board)){ ZMK_LAYOUTS = ZMK_BOARD_CACHE.get(board); return; }
+  if(!ZMK_TREE){
+    const tr = await githubApi('https://api.github.com/repos/zmkfirmware/zmk/git/trees/main?recursive=1');
+    // Layout files live in BOTH app/dts/layouts/** and app/boards/**/<board>-layouts.dtsi
+    // (the latter is where a_dux/kyria/sofle/ferris/jorne/… define theirs).
+    ZMK_TREE = tr.ok ? (tr.json.tree||[]).filter(n=>n.type==='blob' && n.path.endsWith('.dtsi') &&
+      (n.path.startsWith('app/dts/layouts/') || n.path.startsWith('app/boards/'))).map(n=>n.path) : [];
+  }
+  // Match files whose path has a segment == a candidate board name, or whose filename
+  // stem (minus a -layout(s) suffix) == a candidate - so ferris_rev02 finds ferris.
+  const cands = boardCandidates(board);
+  const hits = ZMK_TREE.filter(p => {
+    const segs = p.toLowerCase().split('/');
+    const stem = segs[segs.length-1].replace(/\.dtsi$/,'').replace(/[-_]layouts?$/,'');
+    return cands.some(c => segs.includes(c) || stem === c);
+  }).slice(0, 8);
+  const found = [];
+  await Promise.all(hits.map(async p => {
+    try { const r = await fetch(`https://raw.githubusercontent.com/zmkfirmware/zmk/main/${p}`, {cache:'no-store'});
+      if(!r.ok) return; let t = await r.text();
+      t = t.replace(/\/\/.*/g,'').replace(/\/\*[\s\S]*?\*\//g,'');
+      found.push(...parsePhysicalLayouts(t)); } catch(e){}
+  }));
+  ZMK_BOARD_CACHE.set(board, found);
+  ZMK_LAYOUTS = found;
+}
+
+// Generic coordinate render from physical-layout keys (the whole board in one
+// space). Rotation is intentionally ignored (axis-aligned, like the rest of the UI).
+// ── Snapped outer columns (e.g. 36-key Corne = 42-key board with the outer column
+// snapped off) ──────────────────────────────────────────────────────────────────────
+// A keymap with all-&trans/&none outer columns is ambiguous: it could be the full board,
+// or a smaller board whose outer column was physically removed. We detect that, default
+// to the smaller version, and let the user pick which they actually have.
+let HIDDEN_KEYS = new Set();   // key indices not drawn (snapped-off outer columns)
+let SNAP_COLS = 0;             // how many outer columns are snappable (>0 → show the chooser)
+let SNAP_HIDE_COUNT = 0;       // how many keys those columns hold
+let SNAP_FULL = 0;             // full key count
+var BOARD_FULL = false;        // false = smaller/snapped version, true = full board
+var BOARD_USER_SET = false;    // true once the user picks a version manually (stops auto-inference)
+var BOARD_ASK = false;         // true = ambiguous & no name hint → prompt the user to choose
+function isDeadBinding(b){ return !b || /^&(trans|none)\b/.test(String(b).trim()); }
+// Guess the version from the source/repo name: e.g. "zmk-config-corne36" → 36-key (trim),
+// "...corne42" → 42-key (full). Returns 'trim' | 'full' | null (no hint → ask the user).
+function inferBoardVersion(trimCount, fullCount){
+  const src = LOADED_SRC ? [LOADED_SRC.repo, LOADED_SRC.dir, LOADED_SRC.path, LOADED_SRC.board].filter(Boolean).join(' ').toLowerCase() : '';
+  if(!src) return null;
+  const has = n => new RegExp('(^|[^0-9])'+n+'([^0-9]|$)').test(src);
+  const t = has(trimCount), f = has(fullCount);
+  if(f && !t) return 'full';
+  if(t && !f) return 'trim';
+  return null;   // neither (or both) present → ambiguous
+}
+function computeSnappedColumns(layers){
+  HIDDEN_KEYS = new Set(); SNAP_COLS = 0; SNAP_HIDE_COUNT = 0; SNAP_FULL = 0;
+  if(!layers.length) return;
+  const n = layers[0].bindings.length; SNAP_FULL = n;
+  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS).find(L => L.length === n);
+  if(!phys) return;   // only meaningful with an exact coordinate layout
+  const sameLen = layers.filter(L => L.bindings.length === n);
+  const dead = i => sameLen.every(L => isDeadBinding(L.bindings[i]));
+  // group key indices into columns by x; snap whole outer columns that are dead everywhere
+  const colMap = new Map();
+  phys.forEach((k,i)=>{ const cx = Math.round((k.x||0)/10); if(!colMap.has(cx)) colMap.set(cx, []); colMap.get(cx).push(i); });
+  const cols = [...colMap.keys()].sort((a,b)=>a-b);   // left → right
+  const hide = new Set();
+  for(const c of cols){ const idxs = colMap.get(c); if(idxs.length && idxs.every(dead)){ idxs.forEach(i=>hide.add(i)); SNAP_COLS++; } else break; }            // left edge inward
+  for(let j=cols.length-1; j>=0; j--){ const idxs = colMap.get(cols[j]); if(idxs.every(i=>hide.has(i))) break; if(idxs.length && idxs.every(dead)){ idxs.forEach(i=>hide.add(i)); SNAP_COLS++; } else break; }  // right edge inward
+  if(hide.size >= n){ hide.clear(); SNAP_COLS = 0; }   // never hide the whole board
+  SNAP_HIDE_COUNT = hide.size;
+  if(SNAP_COLS > 0 && !BOARD_USER_SET){
+    const guess = inferBoardVersion(n - SNAP_HIDE_COUNT, n);
+    BOARD_FULL = (guess === 'full');     // name hint wins; otherwise show the trimmed view…
+    BOARD_ASK  = (guess === null);       // …and flag that we're guessing, so we prompt the user
+  } else if(SNAP_COLS === 0){ BOARD_ASK = false; }
+  HIDDEN_KEYS = BOARD_FULL ? new Set() : hide;
+}
+
+function renderLayerCoords(bindings, ov, keys){
+  const S=0.52, pad=1.3, RAD=Math.PI/180;   // px per centi-unit (100cu = 1u ≈ 52px)
+  // Rotate a point (px,py) around origin (ox,oy) by deg degrees.
+  const rotPt=(px,py,ox,oy,deg)=>{ if(!deg) return [px,py];
+    const a=deg*RAD,c=Math.cos(a),s=Math.sin(a),dx=px-ox,dy=py-oy;
+    return [ox+dx*c-dy*s, oy+dx*s+dy*c]; };
+  // Bounds from each key's ROTATED corners, so rotated keys aren't clipped.
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  keys.forEach((k,i)=>{ if(HIDDEN_KEYS.has(i)) return; const deg=(k.rot||0)/100, ox=k.rx||0, oy=k.ry||0;
+    [[k.x,k.y],[k.x+k.w,k.y],[k.x,k.y+k.h],[k.x+k.w,k.y+k.h]].forEach(([px,py])=>{
+      const [X,Y]=rotPt(px,py,ox,oy,deg);
+      if(X<minX)minX=X; if(X>maxX)maxX=X; if(Y<minY)minY=Y; if(Y>maxY)maxY=Y; }); });
+  const W=((maxX-minX)*S).toFixed(0), H=((maxY-minY)*S).toFixed(0);
+  let h=`<div class="coord-board" style="position:relative;width:${W}px;height:${H}px">`;
+  bindings.forEach((b,i)=>{
+    const k=keys[i]; if(!k || HIDDEN_KEYS.has(i)) return;   // skip snapped-off outer-column keys (index preserved for editing)
+    const deg=(k.rot||0)/100;
+    const x=((k.x-minX)*S+pad).toFixed(1), y=((k.y-minY)*S+pad).toFixed(1);
+    const w=(k.w*S-2*pad).toFixed(1), ht=(k.h*S-2*pad).toFixed(1);
+    // Honour ZMK key rotation (centi-degrees) about (rx,ry) so rotated thumb keys
+    // sit correctly instead of overlapping their neighbours as flattened boxes.
+    let tf='transform:none';
+    if(deg){
+      const oX=(((k.rx||0)-k.x)*S - pad).toFixed(1), oY=(((k.ry||0)-k.y)*S - pad).toFixed(1);
+      tf=`transform:rotate(${deg.toFixed(2)}deg);transform-origin:${oX}px ${oY}px`;
+    }
+    h+=renderKey(b||'&trans', false, ov.get(i),
+      `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${ht}px;${tf}`, i);
+  });
+  return h+'</div>';
+}
+
+// Generic fallback: render the keymap using the rows inferred from its source
+// formatting (one source line = one row). Correct shape for any board - ortho,
+// 6-col, >3 rows, splits - when no physical-layout is available.
+function renderLayerRows(rows, ov){
+  let i=0, h='<div class="keyboard rows-fallback"><div class="half">';
+  for(const row of rows){
+    h+='<div class="row">';
+    for(const b of row){ h+=renderKey(b||'&trans', false, ov.get(i), undefined, i); i++; }
+    h+='</div>';
+  }
+  return h+'</div></div>';
+}
+
+// Last-resort fallback when there's no geometry AND no usable source-row structure
+// (e.g. a macro-expanded keymap collapsed to one line). We can't know the true
+// shape, so flow the keys into a readable wrapped grid in keymap order rather than
+// one giant overflowing row.
+function renderLayerWrap(bindings, ov){
+  let h='<div class="wrap-board">';
+  bindings.forEach((b,i)=>{ h+=renderKey(b||'&trans', false, ov.get(i), undefined, i); });
+  return h+'</div>';
+}
+
+function renderLayer(bindings, overrides, rows, layerIndex){
+  CUR_LI = (layerIndex == null) ? null : layerIndex;   // for edit-mode key tagging
+  const ov0 = overrides || new Map();
+  // Exact board geometry if a matching physical-layout is available.
+  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS).find(L => L.length === bindings.length);
+  if(phys) return `<div class="eq-keyboard">${renderLayerCoords(bindings, ov0, phys)}</div>`;
+  const layout = getLayout(bindings.length);
+  // Unknown shape: use the keymap's own row formatting if it has real multi-row
+  // structure; otherwise (one collapsed line) flow into a readable wrapped grid.
+  if(!layout) return (rows && rows.length > 1)
+    ? renderLayerRows(rows, ov0)
+    : renderLayerWrap(bindings, ov0);
+  if(layout.coord) return renderLayerEQ(bindings, overrides, layout.coord==='joy');
+  const b = bindings;
+  const ov = overrides || new Map();
+  let h = '<div class="keyboard">';
+  // Left half
+  h += '<div class="half">';
+  layout.leftRows.forEach(row=>{
+    h += '<div class="row">'; row.forEach(i=>h+=renderKey(b[i]||'&trans',false,ov.get(i),undefined,i)); h+='</div>';
+  });
+  h += '<div class="row thumb-l">';
+  layout.leftThumb.forEach(i=>h+=renderThumb(i,b,ov));
+  h += '</div></div>';
+  // Separator
+  h += '<div class="sep"><div class="sep-inner"></div></div>';
+  // Right half
+  h += '<div class="half">';
+  layout.rightRows.forEach(row=>{
+    h += '<div class="row">'; row.forEach(i=>h+=renderKey(b[i]||'&trans',false,ov.get(i),undefined,i)); h+='</div>';
+  });
+  h += '<div class="row thumb-r">';
+  layout.rightThumb.forEach(i=>h+=renderThumb(i,b,ov));
+  h += '</div></div>';
+  h += '</div>';
+  return h;
+}
+
+// Given a binding string, return the short human label suitable for combo key display.
+// For mod-tap (&mt / &lt) use the tap key (last line). For everything else use full label.
+function shortLabel(binding){
+  if(!binding) return '?';
+  const {label} = translate(binding);
+  const lines = label.split('\n');
+  // mod-tap format is "MOD↓\nKEY" - return the tap key (last line)
+  return lines[lines.length - 1] || label;
+}
+
+function renderCombos(combos, defaultBindings){
+  if(!combos.length) return '';
+
+  // Build a flat position→binding map from the default layer
+  const posMap = {};
+  if(defaultBindings){
+    defaultBindings.forEach((b, i) => { posMap[i] = b; });
+  }
+
+  function keyName(pos){
+    const b = posMap[pos];
+    if(!b || b==='&trans' || b==='&none') return `[${pos}]`;
+    return shortLabel(b);
+  }
+
+  let h = '<div class="card combos-section">';
+  h += '<div class="combos-title">Combos</div>';
+  h += '<div class="combos-grid">';
+
+  combos.forEach((c,ci)=>{
+    const {label: outLabel} = translate(c.binding);
+    const keyParts = c.positions.map(keyName);
+    const layStr = c.layers ? ` [L${c.layers.join(',')}]` : '';
+    const rm = (typeof EDIT_MODE!=='undefined' && EDIT_MODE && EDIT_STRUCTURED)
+      ? `<button class="combo-rm" data-ci="${ci}" title="Remove combo">✕</button>` : '';
+
+    h += `<div class="combo">`;
+    h += `<span class="combo-keys">${esc(keyParts.join(' + '))}</span>`;
+    h += `<span class="combo-arr">→</span>`;
+    h += `<span class="combo-out">${esc(outLabel)}</span>`;
+    if(layStr) h += `<span class="combo-lay">${esc(layStr)}</span>`;
+    h += rm;
+    h += `</div>`;
+  });
+
+  h += '</div></div>';
+  return h;
+}
+
+// ── C preprocessor (enough for ZMK keymaps incl. miryoku X-macros) ───────────
+// Namespaced in an IIFE so its helpers don't clash with the parser's.
+const cppPreprocess = (function(){
+  const PUNCT = ['<<=','>>=','...','->','++','--','<<','>>','<=','>=','==','!=','&&','||','##',
+    '+=','-=','*=','/=','%=','&=','|=','^=','::','#','(',')','{','}','[',']',';',',','.','+','-','*','/','%','&','|','^','~','!','<','>','=','?',':','@','\\'];
+  function stripC(s){ let o='',i=0,n=s.length; while(i<n){ const c=s[i],d=s[i+1];
+    if(c==='/'&&d==='/'){ while(i<n&&s[i]!=='\n')i++; }
+    else if(c==='/'&&d==='*'){ i+=2; while(i<n&&!(s[i]==='*'&&s[i+1]==='/'))i++; i+=2; o+=' '; }
+    else if(c==='"'||c==="'"){ const q=c; o+=c; i++; while(i<n){ o+=s[i]; if(s[i]==='\\'){o+=s[i+1];i+=2;continue;} if(s[i]===q){i++;break;} i++; } }
+    else { o+=c; i++; } } return o; }
+  function tok(line){ const t=[]; let i=0,n=line.length; while(i<n){ const c=line[i];
+    if(c===' '||c==='\t'){ let j=i; while(j<n&&(line[j]===' '||line[j]==='\t'))j++; t.push({type:'ws',value:' '}); i=j; continue; }
+    if(c==='"'||c==="'"){ const q=c; let v=c; i++; while(i<n){ v+=line[i]; if(line[i]==='\\'){v+=line[i+1];i+=2;continue;} if(line[i]===q){i++;break;} i++; } t.push({type:'str',value:v}); continue; }
+    if(/[A-Za-z_]/.test(c)){ let j=i+1; while(j<n&&/[A-Za-z0-9_]/.test(line[j]))j++; t.push({type:'id',value:line.slice(i,j)}); i=j; continue; }
+    if(/[0-9]/.test(c)){ let j=i+1; while(j<n&&/[0-9A-Za-z._]/.test(line[j]))j++; t.push({type:'num',value:line.slice(i,j)}); i=j; continue; }
+    let m=null; for(const p of PUNCT){ if(line.startsWith(p,i)){m=p;break;} }
+    if(m){ t.push({type:'punct',value:m}); i+=m.length; continue; }
+    t.push({type:'other',value:c}); i++; } return t; }
+  const isWs=t=>t.type==='ws';
+  function detok(ts){ let o=''; for(const t of ts) o+= isWs(t)?' ':t.value; return o.replace(/[ \t]+/g,' '); }
+  const clone=t=>({type:t.type,value:t.value,hide:t.hide?new Set(t.hide):undefined});
+  const addHide=(set,name)=>{ const s=new Set(set||[]); s.add(name); return s; };
+  const union=(a,b)=>{ const s=new Set(a||[]); if(b)for(const x of b)s.add(x); return s; };
+  const intersect=(a,b)=>{ if(!a||!b)return new Set(); const s=new Set(); for(const x of a)if(b.has(x))s.add(x); return s; };
+  function collectArgs(ts,lp){ const args=[]; let depth=0,i=lp,cur=[];
+    for(;i<ts.length;i++){ const t=ts[i];
+      if(t.type==='punct'&&t.value==='('){ depth++; if(depth===1)continue; cur.push(t); }
+      else if(t.type==='punct'&&t.value===')'){ depth--; if(depth===0){ args.push(cur); i++; break; } cur.push(t); }
+      else if(t.type==='punct'&&t.value===','&&depth===1){ args.push(cur); cur=[]; }
+      else cur.push(t); }
+    const trim=a=>{ while(a.length&&isWs(a[0]))a.shift(); while(a.length&&isWs(a[a.length-1]))a.pop(); return a; };
+    let r=args.map(trim); if(r.length===1&&r[0].length===0)r=[]; return {args:r,end:i}; }
+  function stringize(ts){ let s=detok(ts).trim().replace(/\\/g,'\\\\').replace(/"/g,'\\"'); return {type:'str',value:'"'+s+'"'}; }
+  function paste(a,b){ const v=(a||'')+(b||''); const tk=tok(v).filter(t=>!isWs(t)); return tk.length?tk:[{type:'id',value:v}]; }
+  function expand(tokens, macros){ tokens=tokens.map(clone); let i=0,guard=0;
+    while(i<tokens.length){ if(++guard>2000000) throw new Error('cpp overflow'); const t=tokens[i];
+      if(t.type==='id'&&macros.has(t.value)&&!(t.hide&&t.hide.has(t.value))){ const m=macros.get(t.value);
+        if(m.fn){ let j=i+1; while(j<tokens.length&&isWs(tokens[j]))j++;
+          if(j<tokens.length&&tokens[j].type==='punct'&&tokens[j].value==='('){
+            const {args,end}=collectArgs(tokens,j); const rp=tokens[end-1]?tokens[end-1].hide:undefined;
+            const body=substitute(m,args,macros); const hs=addHide(intersect(t.hide,rp),t.value);
+            for(const bt of body) bt.hide=union(bt.hide,hs); tokens.splice(i,end-i,...body); continue;
+          } else { i++; continue; }
+        } else { const body=m.body.map(clone); const hs=addHide(t.hide,t.value);
+          for(const bt of body) bt.hide=union(bt.hide,hs); tokens.splice(i,1,...body); continue; } }
+      i++; } return tokens; }
+  function substitute(m,args,macros){ const params=m.params; const out=[];
+    const getArg=name=>{ if(name==='__VA_ARGS__'){ const fixed=params.filter(p=>p!=='...').length; const va=args.slice(fixed);
+        const j=[]; va.forEach((a,k)=>{ if(k)j.push({type:'punct',value:','}); j.push(...a); }); return j; }
+      const idx=params.indexOf(name); return idx>=0?(args[idx]||[]):null; };
+    const body=m.body;
+    for(let k=0;k<body.length;k++){ const t=body[k];
+      if(t.type==='punct'&&t.value==='#'){ let j=k+1; while(j<body.length&&isWs(body[j]))j++;
+        const nm=body[j]&&body[j].type==='id'?body[j].value:null; const arg=nm!=null?getArg(nm):null;
+        if(arg!=null){ out.push(stringize(arg)); k=j; continue; } }
+      let nn=k+1; while(nn<body.length&&isWs(body[nn]))nn++;
+      if(body[nn]&&body[nn].type==='punct'&&body[nn].value==='##'){
+        const ln=t.type==='id'?getArg(t.value):null; let acc=(ln!=null?ln:[t]).map(clone); let r=nn;
+        while(body[r]&&body[r].type==='punct'&&body[r].value==='##'){ let rr=r+1; while(rr<body.length&&isWs(body[rr]))rr++;
+          const rt=body[rr]; const rn=rt&&rt.type==='id'?getArg(rt.value):null; const rToks=rn!=null?rn:(rt?[rt]:[]);
+          const last=acc.length?acc[acc.length-1]:{value:''}; const first=rToks.length?rToks[0]:{value:''};
+          acc=acc.slice(0,-1).concat(paste(last.value,first.value).map(clone), rToks.slice(1).map(clone));
+          r=rr+1; while(r<body.length&&isWs(body[r]))r++; }
+        out.push(...acc); k=r-1; continue; }
+      if(t.type==='id'){ const arg=getArg(t.value); if(arg!=null){ out.push(...expand(arg,macros).map(clone)); continue; } }
+      out.push(clone(t)); }
+    return out; }
+  function parseDefine(rest){ const m=rest.match(/^([A-Za-z_]\w*)/); if(!m)return null; const name=m[1]; let i=m[0].length;
+    let fn=false,params=[]; if(rest[i]==='('){ fn=true; let depth=0,j=i,buf=''; for(;j<rest.length;j++){ const c=rest[j];
+        if(c==='('){depth++; if(depth===1)continue;} if(c===')'){depth--; if(depth===0){j++;break;}} buf+=c; }
+      params=buf.split(',').map(s=>s.trim()).filter(s=>s.length); i=j; }
+    return {name,fn,params,body:tok(rest.slice(i).trim())}; }
+  function evalIf(expr,macros){ let e=expr.replace(/defined\s*\(\s*([A-Za-z_]\w*)\s*\)/g,(_,n)=>macros.has(n)?'1':'0')
+      .replace(/defined\s+([A-Za-z_]\w*)/g,(_,n)=>macros.has(n)?'1':'0');
+    let s=detok(expand(tok(e),macros)).replace(/[A-Za-z_]\w*/g,id=>/^\d/.test(id)?id:'0');
+    if(!/^[\d\s+\-*/%()<>=!&|^~?:.]*$/.test(s))return false; try{ return !!Function('return ('+(s||'0')+')')(); }catch(e){ return false; } }
+  async function preprocess(text,opts={}){ const readInclude=opts.readInclude||(async()=>null);
+    const macros=opts.macros||new Map(); const onceSet=opts.onceSet||new Set(); const out=[];
+    const src=stripC(text).replace(/\\\r?\n/g,' '); const lines=src.split(/\r?\n/); const cond=[];
+    const active=()=>cond.every(c=>c.active);
+    for(let li=0;li<lines.length;li++){ const line=lines[li]; const dm=line.match(/^\s*#\s*(\w+)\s?(.*)$/);
+      if(dm){ const d=dm[1], rest=dm[2].trim();
+        if(d==='if'||d==='ifdef'||d==='ifndef'){ let val; if(!active())val=false; else if(d==='ifdef')val=macros.has(rest.trim()); else if(d==='ifndef')val=!macros.has(rest.trim()); else val=evalIf(rest,macros);
+          cond.push({active:active()&&val,taken:val,parent:active()}); }
+        else if(d==='elif'){ const c=cond[cond.length-1]; if(c){ const v=(!c.taken&&c.parent)?evalIf(rest,macros):false; c.active=c.parent&&v&&!c.taken; if(v)c.taken=true; } }
+        else if(d==='else'){ const c=cond[cond.length-1]; if(c){ c.active=c.parent&&!c.taken; c.taken=true; } }
+        else if(d==='endif'){ cond.pop(); }
+        else if(!active()){}
+        else if(d==='define'){ const def=parseDefine(rest); if(def)macros.set(def.name,def); }
+        else if(d==='undef'){ macros.delete(rest.trim()); }
+        else if(d==='include'){ const q=rest.match(/^"([^"]+)"/), a=rest.match(/^<([^>]+)>/); const path=q?q[1]:(a?a[1]:null), kind=q?'quote':'angle';
+          if(path){ const inc=await readInclude(path,kind); if(inc&&inc.text!=null&&!onceSet.has(inc.key)){ onceSet.add(inc.key);
+            out.push(await preprocess(inc.text,{readInclude:inc.readInclude||readInclude,macros,onceSet})); } } }
+        continue; }
+      if(!active())continue; if(line.trim()===''){ out.push(''); continue; }
+      out.push(detok(expand(tok(line),macros))); }
+    return out.join('\n'); }
+  return preprocess;
+})();
+
+// Where the currently-loaded keymap came from (for resolving #include). Null when
+// the user typed/pasted manually (then only inline macros expand, no fetch).
+let LOADED_SRC = null;
+function srcFromRawUrl(url){
+  const m = url.match(/^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
+  if(!m) return null;
+  const parts = m[4].split('/');
+  const board = (parts[parts.length-1]||'').replace(/\.keymap$/,'').toLowerCase();  // e.g. lily58
+  return { owner:m[1], repo:m[2], branch:m[3], dir:parts.slice(0,-1).join('/'), board, path:m[4] };
+}
+function makeRepoResolver(src){
+  const norm=p=>{ const a=[]; for(const s of p.split('/')){ if(s==='..')a.pop(); else if(s!=='.'&&s!=='')a.push(s); } return a.join('/'); };
+  const mk=dir=>async(path,kind)=>{
+    if(kind==='angle') return null; // ZMK/zephyr headers - not needed for bindings
+    const full=norm(dir+'/'+path);
+    try{
+      const r=await fetch(`https://raw.githubusercontent.com/${src.owner}/${src.repo}/${src.branch}/${full}`,{cache:'no-store'});
+      if(!r.ok) return null;
+      return { text: await r.text(), key:full, readInclude: mk(full.split('/').slice(0,-1).join('/')) };
+    }catch(e){ return null; }
+  };
+  return mk(src.dir||'');
+}
+
+async function render(){
+  let text = document.getElementById('inp').value;
+  const errEl = document.getElementById('err');
+  const out = document.getElementById('out');
+  errEl.style.display='none';
+  if(!text.trim()){ errEl.textContent='Paste a keymap file first.'; errEl.style.display='block'; return; }
+  try{
+    // Expand #include / #define / macros (e.g. miryoku) before parsing. When the
+    // keymap was loaded from a repo, #include "…" files are fetched from it;
+    // otherwise only inline macros expand.
+    if(/^\s*#\s*(include|define|if|ifdef|ifndef)\b/m.test(text)){
+      const errEl2=errEl; errEl2.style.display='none';
+      try { text = await cppPreprocess(text, { readInclude: LOADED_SRC ? makeRepoResolver(LOADED_SRC) : null }); }
+      catch(e){ console.warn('preprocess failed; using raw text', e); }
+    }
+    CUSTOM_BEHAVIORS = parseBehaviors(text);
+    const layers = parseLayers(text);
+    LAYER_NAMES = layers.map(l=>l.name);   // layer index -> name, for &mo/&to/&lt labels
+    PHYS_LAYOUTS = parsePhysicalLayouts(text);  // exact board geometry, if present
+    const combos = parseCombos(text);
+    if(!layers.length){
+      const raw = document.getElementById('inp').value;
+      const hasInclude = /^\s*#\s*include/m.test(raw);
+      errEl.textContent = (hasInclude && !LOADED_SRC)
+        ? 'This keymap pulls its layers from other files via #include. Load it from its GitHub repo '
+          + '(paste owner/repo or the repo URL above) so the includes can be fetched and expanded.'
+        : hasInclude
+        ? 'Loaded and expanded the includes, but found no layers - this config may use macros or a '
+          + 'layout this viewer does not support yet.'
+        : 'No layers found. Make sure the file has bindings = <…> blocks with 30+ keys.';
+      errEl.style.display='block'; return;
+    }
+    const defaultBindings = layers[0] ? layers[0].bindings : [];
+    const overrides = parseKeyOverrides(text);
+    buildEditModel(layers);   // edit-mode document model from raw source (sets EDIT_STRUCTURED)
+    computeSnappedColumns(layers);   // detect snapped-off outer columns (e.g. 36-key Corne)
+    let h = '';
+    const canEdit = EDIT_MODE && EDIT_STRUCTURED;
+    LAYER_COUNT = layers.length;
+    const single = LAYER_VIEW === 'single' && layers.length > 1;
+    // One layer card. showDrag adds the ⠿ handle (only meaningful in all-layers mode).
+    const layerCard = (layer, i, showDrag) => {
+      const dragH    = (canEdit && showDrag) ? `<span class="lay-drag" title="Drag to reorder">⠿</span>` : '';
+      const renameBtn = canEdit ? `<button class="lay-rename" data-rli="${i}" title="Rename this layer">✎ rename</button>` : '';
+      const delBtn   = (canEdit && layers.length > 1) ? `<button class="lay-del" data-dli="${i}" title="Delete this layer">🗑</button>` : '';
+      const cardAttr = canEdit ? ` data-li="${i}"` : '';
+      return `<div class="layer-card"${cardAttr}><div class="layer-head">${dragH}<span class="layer-name">${esc(layer.name)}</span><span class="layer-num">Layer ${i}</span>${renameBtn}${delBtn}</div>${renderLayer(layer.bindings,overrides,layer.rows,i)}</div>`;
+    };
+    if(single){
+      if(ACTIVE_LAYER >= layers.length) ACTIVE_LAYER = layers.length - 1;
+      if(ACTIVE_LAYER < 0) ACTIVE_LAYER = 0;
+      // Pill strip: click to switch layer; drag to reorder (when editable).
+      h += '<div class="layer-pills" id="layer-pills">' + layers.map((L,i)=>
+        `<button class="layer-pill${i===ACTIVE_LAYER?' active':''}" data-pli="${i}"${canEdit?' draggable="true"':''} title="${esc(L.name)} (Layer ${i})${canEdit?' - drag to reorder':''}">${canEdit?'<span class="lp-grip">⠿</span>':''}<span class="lp-name">${esc(L.name)}</span><span class="lp-num">${i}</span></button>`
+      ).join('') + '</div>';
+      h += '<div class="pill-hint">'+(canEdit ? 'Click a layer to view it · drag the pills to reorder' : 'Click a layer to view it')+'</div>';
+      h += layerCard(layers[ACTIVE_LAYER], ACTIVE_LAYER, false);
+    } else {
+      layers.forEach((layer,i)=> h += layerCard(layer, i, true));
+    }
+    h += renderCombos(combos, defaultBindings);
+    out.innerHTML=h; out.style.display='block';
+    updateLegend(out);
+    afterRender();
+  }catch(e){
+    errEl.textContent='Parse error: '+e.message; errEl.style.display='block'; console.error(e);
+  }
+}
+
+// Legend categories. `sel` is matched against the rendered output so only the
+// behaviour types actually used by the current keymap are shown.
+const LEGEND_ITEMS = [
+  { sel:'.k-std',    label:'Standard',      swatch:'background:#e2e2e2;border:1px solid #c8c8c8' },
+  { sel:'.k-thumb',  label:'Thumb',         swatch:'background:#0d9488' },
+  { sel:'.k-modtap', label:'Mod/Layer tap', swatch:'background:#7c3aed' },
+  { sel:'.k-layer',  label:'Layer switch',  swatch:'background:#2563eb' },
+  { sel:'.k-sticky', label:'Sticky',        swatch:'background:#d97706' },
+  { sel:'.k-system', label:'System',        swatch:'background:#dc2626' },
+  { sel:'.k-mouse',  label:'Mouse',         swatch:'background:#ec4899' },
+  { sel:'.k-joy',    label:'Joystick',      swatch:'background:#0f766e' },
+  { sel:'.k-trans',  label:'Transparent',   swatch:'background:#f5f5f5;border:1px dashed #ddd' },
+];
+function updateLegend(outEl){
+  const legend = document.getElementById('legend');
+  legend.querySelectorAll('.li').forEach(el=>el.remove());
+  const present = LEGEND_ITEMS.filter(it=>outEl && outEl.querySelector(it.sel));
+  for(const it of present){
+    const li=document.createElement('div'); li.className='li';
+    li.innerHTML=`<div class="ld" style="${it.swatch}"></div>${it.label}`;
+    legend.insertBefore(li, document.getElementById('legend-right'));   // keep the right-side controls last
+  }
+  legend.style.display = present.length ? '' : 'none';
+  // Export buttons appear whenever there's a rendered keymap.
+  const hasKeys = !!(outEl && outEl.querySelector('.key'));
+  document.getElementById('btn-svg').style.display = hasKeys ? '' : 'none';
+  document.getElementById('btn-png').style.display = hasKeys ? '' : 'none';
+}
+
+function clearAll(){
+  document.getElementById('inp').value='';
+  document.getElementById('out').innerHTML=''; document.getElementById('out').style.display='none';
+  document.getElementById('err').style.display='none';
+  document.getElementById('legend').style.display='none';
+  document.getElementById('btn-svg').style.display='none';
+  document.getElementById('btn-png').style.display='none';
+  document.getElementById('editor-bar').classList.remove('on');
+  EDIT_HISTORY=null; EDIT_MODEL=null; ACTIVE_LAYER=0; BOARD_FULL=false; BOARD_USER_SET=false;
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+// Build an SVG by measuring the rendered output: faithful to what's on screen and
+// layout-agnostic (reads each element's real position/colour/text). PNG is the
+// same SVG rasterised onto a canvas.
+function svgEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function buildKeymapSVG(){
+  const out = document.getElementById('out');
+  if(!out || out.style.display==='none' || !out.querySelector('.key')) return null;
+  const ob = out.getBoundingClientRect();
+  const W = Math.ceil(out.scrollWidth), H = Math.ceil(out.scrollHeight);
+  const rel = el => { const r=el.getBoundingClientRect(); return {x:r.left-ob.left, y:r.top-ob.top, w:r.width, h:r.height}; };
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" `
+        + `font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">`;
+  // Background follows the current theme (page background) so dark-mode exports look right.
+  const pageBg = getComputedStyle(document.body).backgroundColor || '#f0f0f0';
+  s += `<rect width="${W}" height="${H}" fill="${pageBg}"/>`;
+  // Panels first (layer cards / combos), then keys, so keys sit on top.
+  for(const el of out.querySelectorAll('.layer-card, .combos-section, .combo')){
+    const r=rel(el), cs=getComputedStyle(el);
+    const rad=parseFloat(cs.borderTopLeftRadius)||0, bw=parseFloat(cs.borderTopWidth)||0;
+    s += `<rect x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="${r.w.toFixed(1)}" height="${r.h.toFixed(1)}" rx="${rad}" `
+       + `fill="${cs.backgroundColor}" ${bw?`stroke="${cs.borderTopColor}" stroke-width="${bw}"`:''}/>`;
+  }
+  // Ellipsis-truncate text to a width, matching the DOM's text-overflow:ellipsis, so
+  // long labels don't overflow the key in the export the way they don't on screen.
+  const _mc = document.createElement('canvas').getContext('2d');
+  const fitText = (text, maxW, cs) => {
+    _mc.font = `${cs.fontWeight} ${parseFloat(cs.fontSize)}px ${cs.fontFamily}`;
+    if(_mc.measureText(text).width <= maxW) return text;
+    let lo=0, hi=text.length;
+    while(lo<hi){ const mid=Math.ceil((lo+hi)/2); if(_mc.measureText(text.slice(0,mid)+'…').width<=maxW) lo=mid; else hi=mid-1; }
+    return lo>0 ? text.slice(0,lo)+'…' : '…';
+  };
+  // Unrotated layout box (offsetLeft/Top/Width/Height ignore CSS transforms) relative to
+  // #out - walk offsetParent chains and cancel out's own offset.
+  const absOff = el => { let x=0,y=0,n=el; while(n){ x+=n.offsetLeft; y+=n.offsetTop; n=n.offsetParent; } return {x,y}; };
+  const oA = absOff(out);
+  const boxRel = el => { const a=absOff(el); return {x:a.x-oA.x, y:a.y-oA.y, w:el.offsetWidth, h:el.offsetHeight}; };
+
+  // Keys - preserve each key's rotation. The editor rotates thumb keys with a CSS
+  // transform; a rotated key's getBoundingClientRect is its AXIS-ALIGNED bbox, which
+  // balloons it into its neighbours (the export overlap bug). So we take each key's
+  // UNROTATED offset box + child-text positions and wrap rect+text in an SVG rotate()
+  // about the same origin CSS uses. Layout-agnostic: works for any board geometry.
+  for(const el of out.querySelectorAll('.key')){
+    const cs=getComputedStyle(el);
+    const tfStr=cs.transform, originStr=cs.transformOrigin;
+    const hasRot = tfStr && tfStr!=='none' && tfStr!=='matrix(1, 0, 0, 1, 0, 0)';
+    const r=boxRel(el);
+    const spans=[];
+    for(const sp of el.querySelectorAll('span')){
+      const t=sp.textContent; if(!t||!t.trim()) continue;
+      const sr=boxRel(sp), scs=getComputedStyle(sp);
+      const disp=(sp.scrollWidth>sp.clientWidth+1)?fitText(t.trim(),sp.clientWidth,scs):t.trim();
+      spans.push({x:sr.x+sr.w/2, y:sr.y+sr.h/2, disp, color:scs.color, fs:parseFloat(scs.fontSize), fw:scs.fontWeight});
+    }
+    let g0='', g1='';
+    if(hasRot){
+      const m=new DOMMatrix(tfStr), angle=Math.atan2(m.b,m.a)*180/Math.PI, o=originStr.split(' ');
+      const cx=r.x+(parseFloat(o[0])||r.w/2), cy=r.y+(parseFloat(o[1])||r.h/2);
+      g0=`<g transform="rotate(${angle.toFixed(2)} ${cx.toFixed(1)} ${cy.toFixed(1)})">`; g1='</g>';
+    }
+    const rad=parseFloat(cs.borderTopLeftRadius)||6, bw=parseFloat(cs.borderTopWidth)||1;
+    const dash = cs.borderTopStyle==='dashed' ? ` stroke-dasharray="3 2"` : '';
+    s += g0 + `<rect x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="${r.w.toFixed(1)}" height="${r.h.toFixed(1)}" rx="${rad}" `
+       + `fill="${cs.backgroundColor}" stroke="${cs.borderTopColor}" stroke-width="${bw}"${dash}/>`;
+    for(const sp of spans)
+      s += `<text x="${sp.x.toFixed(1)}" y="${sp.y.toFixed(1)}" fill="${sp.color}" font-size="${sp.fs.toFixed(1)}" `
+         + `font-weight="${sp.fw}" text-anchor="middle" dominant-baseline="central">${svgEsc(sp.disp)}</text>`;
+    s += g1;
+  }
+  // Non-key text (layer titles, combos) - never rotated. Joystick/key spans were drawn
+  // above inside their key's group.
+  for(const el of out.querySelectorAll('.layer-name, .layer-num, .combos-title, .combo-keys, .combo-arr, .combo-out, .combo-lay')){
+    const t = el.textContent; if(!t || !t.trim()) continue;
+    const r=rel(el), cs=getComputedStyle(el);
+    const disp = (el.scrollWidth > el.clientWidth + 1) ? fitText(t.trim(), el.clientWidth, cs) : t.trim();
+    s += `<text x="${(r.x+r.w/2).toFixed(1)}" y="${(r.y+r.h/2).toFixed(1)}" fill="${cs.color}" `
+       + `font-size="${parseFloat(cs.fontSize).toFixed(1)}" font-weight="${cs.fontWeight}" `
+       + `text-anchor="middle" dominant-baseline="central">${svgEsc(disp)}</text>`;
+  }
+  return { svg: s+'</svg>', W, H };
+}
+function dlBlob(blob, name){
+  const u=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u), 1000);
+}
+function downloadKeymap(fmt){
+  const r = buildKeymapSVG(); if(!r) return;
+  if(fmt==='svg'){ dlBlob(new Blob([r.svg], {type:'image/svg+xml;charset=utf-8'}), 'keymap.svg'); return; }
+  // PNG: rasterise the SVG at 2x.
+  const scale=2, img=new Image();
+  const url=URL.createObjectURL(new Blob([r.svg], {type:'image/svg+xml;charset=utf-8'}));
+  img.onload=()=>{
+    const c=document.createElement('canvas'); c.width=r.W*scale; c.height=r.H*scale;
+    const ctx=c.getContext('2d'); ctx.scale(scale,scale); ctx.drawImage(img,0,0);
+    URL.revokeObjectURL(url);
+    c.toBlob(b=>b&&dlBlob(b,'keymap.png'), 'image/png');
+  };
+  img.onerror=()=>{ URL.revokeObjectURL(url); alert('PNG export failed (try SVG).'); };
+  img.src=url;
+}
+
+function loadEx(){ document.getElementById('inp').value = EXAMPLE; EDIT_HISTORY=null; ACTIVE_LAYER=0; BOARD_FULL=false; BOARD_USER_SET=false; }
+
+// Live preview: re-render shortly after the user stops typing in the raw .keymap box.
+// Makes raw-source editing immediate (the main editing path for template-generated
+// keymaps that can't be structurally edited key-by-key). Debounced to stay cheap.
+let _previewTimer = null;
+function schedulePreview(){
+  clearTimeout(_previewTimer);
+  _previewTimer = setTimeout(()=>{ if(document.getElementById('inp').value.trim()) render(); }, 500);
+}
+
+const GH_DEFAULT = 'Kit-314/zmk-config-corne36';
+const GH_STORE_KEY = 'zmk-viz-gh-url';
+// Repo context of the last successful discovery, used to build raw URLs when
+// the user switches between multiple keymaps via the dropdown.
+let GH_LAST = { owner:null, repo:null, branch:null };
+
+// All api.github.com GETs go through here. On the deployed site they route through
+// the same-origin Pages Function /api/gh/* (server token + edge cache → rate limits
+// invisible, no user auth). When that's absent (static host / local file) it falls
+// back to direct api.github.com, optionally with a hidden dev token in localStorage
+// ('ght') so local iteration isn't capped at 60/hr. Session-cached. Returns {ok,status,json}.
+const GH_API_CACHE = new Map();
+async function githubApi(url){
+  if(GH_API_CACHE.has(url)) return GH_API_CACHE.get(url);
+  const served = location.protocol === 'http:' || location.protocol === 'https:';
+  let devTok=''; try { devTok = localStorage.getItem('ght') || ''; } catch(e){}
+
+  // 1) same-origin proxy (only meaningful when served over http(s))
+  if(served){
+    try {
+      const r = await fetch('/api/gh/' + url.replace(/^https:\/\/api\.github\.com\//,''), {cache:'no-store'});
+      if(r.headers.get('X-Proxied')){   // it's really the proxy, not a static-host 404
+        LAST_PROXY_AUTH = r.headers.get('X-GH-Auth');   // '1' token attached, '0' missing
+        LAST_PROXY_TOK  = r.headers.get('X-GH-Tok');    // 'set' | 'empty' | 'undefined'
+        const out = { ok:r.ok, status:r.status, json: r.ok ? await r.json() : null };
+        if(r.ok) GH_API_CACHE.set(url, out);
+        return out;
+      }
+    } catch(e){ /* fall through to direct */ }
+  }
+  // 2) direct (with optional dev token)
+  try {
+    const r = await fetch(url, { cache:'no-store', headers: devTok ? {Authorization:'Bearer '+devTok} : {} });
+    const out = { ok:r.ok, status:r.status, json: r.ok ? await r.json() : null };
+    if(r.ok) GH_API_CACHE.set(url, out);
+    return out;
+  } catch(e){ return { ok:false, status:0, json:null }; }
+}
+// Set by githubApi when a response comes from the proxy: '1' = server token attached,
+// '0' = secret not reaching the function (a Cloudflare config issue, not user usage).
+let LAST_PROXY_AUTH = null;
+let LAST_PROXY_TOK = null;
+function rateMsg(){
+  if(LAST_PROXY_AUTH === '0')
+    return '✗ GitHub limit hit - server token not usable (X-GH-Auth: 0, token: '+(LAST_PROXY_TOK||'?')+'). Deploy/secret issue, not your usage.';
+  if(LAST_PROXY_AUTH === '1')
+    return '✗ GitHub API rate-limited - token is attached, the shared limit was hit. Try again shortly.';
+  return '✗ GitHub API rate-limited - please try again in a moment';
+}
+
+function setStatus(cls, html){
+  const el = document.getElementById('gh-status');
+  el.className = 'gh-status ' + cls;
+  el.innerHTML = html;
+}
+
+// Parse user input into either a direct file ({kind:'file', urls:[…]}) or a repo
+// to search ({kind:'repo', owner, repo, branch, subdir}).
+// Accepts: owner/repo[/subdir][@branch], github.com repo/tree/blob/raw URLs,
+// raw.githubusercontent URLs, and owner/repo/path.keymap[@branch] shorthand.
+function parseGitHubInput(s){
+  s = (s||'').trim().replace(/\/+$/,'');
+  if(!s) return null;
+  if(/^https?:\/\/raw\.githubusercontent\.com\//.test(s)) return {kind:'file', urls:[s]};
+  let m = s.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(\/.*)?$/);
+  if(m){
+    const owner=m[1], repo=m[2], rest=m[3]||'';
+    let f = rest.match(/^\/(?:blob|raw)\/(.+)$/);        // a specific file
+    if(f) return {kind:'file', urls:[`https://raw.githubusercontent.com/${owner}/${repo}/${f[1]}`]};
+    let t = rest.match(/^\/tree\/([^/]+)(?:\/(.*))?$/);   // a branch (+ maybe subdir)
+    if(t) return {kind:'repo', owner, repo, branch:t[1], subdir:(t[2]||'')};
+    return {kind:'repo', owner, repo, branch:null, subdir:''};  // bare repo URL
+  }
+  // github.com/<owner> (no repo) -> search all of that owner's repos
+  const om = s.match(/^https?:\/\/github\.com\/([^/]+)\/?$/);
+  if(om) return {kind:'owner', owner:om[1]};
+  // any other github.com URL we couldn't parse: reject (don't CORS-fetch HTML)
+  if(/^https?:\/\/github\.com\//.test(s)) return null;
+  if(/^https?:\/\//.test(s)) return {kind:'file', urls:[s]};
+  // shorthand with optional @branch
+  let branch=null, body=s;
+  const at = s.match(/^(.*)@([^@/]+)$/);
+  if(at){ body=at[1]; branch=at[2]; }
+  const parts = body.split('/').filter(Boolean);
+  if(parts.length === 1) return {kind:'owner', owner:parts[0]};  // bare "owner" -> owner-wide
+  if(parts.length < 2) return null;
+  const owner=parts[0], repo=parts[1], path=parts.slice(2).join('/');
+  if(path.endsWith('.keymap')){
+    const base=`https://raw.githubusercontent.com/${owner}/${repo}`;
+    return {kind:'file', urls: branch?[`${base}/${branch}/${path}`]
+                                     :[`${base}/main/${path}`,`${base}/master/${path}`]};
+  }
+  return {kind:'repo', owner, repo, branch, subdir:path};
+}
+
+// Rank discovered keymaps: prefer config/, then shallower paths, then name.
+function keymapCmp(a,b){
+  return (a.includes('config/')?0:1)-(b.includes('config/')?0:1)
+    || a.split('/').length-b.split('/').length
+    || a.localeCompare(b);
+}
+function rankKeymaps(paths){ return paths.slice().sort(keymapCmp); }
+
+function rawUrl(path){
+  return `https://raw.githubusercontent.com/${GH_LAST.owner}/${GH_LAST.repo}/${GH_LAST.branch}/${path}`;
+}
+
+async function fetchRawInto(urls){
+  let lastErr='fetch failed';
+  for(const url of urls){
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      if(!res.ok){ lastErr=`HTTP ${res.status} ${res.statusText}`; continue; }
+      document.getElementById('inp').value = await res.text();
+      EDIT_HISTORY = null;               // new document → reset undo history
+      LOADED_SRC = srcFromRawUrl(url);   // so #include "…" resolves against this repo BOARD_USER_SET=false; BOARD_FULL=false;
+      if(LOADED_SRC){ await scanRepoLayouts(LOADED_SRC);                 // tier B-lite: repo's own layout
+                      if(!REPO_LAYOUTS.length) await scanZmkCoreLayout(LOADED_SRC.board); }  // tier B-full: ZMK core
+      else ZMK_LAYOUTS = [];
+      await render();
+      return true;
+    }catch(e){ lastErr=e.message; }
+  }
+  setStatus('fail','✗ '+lastErr);
+  return false;
+}
+
+// Called when the user picks a different keymap from the dropdown. Option values
+// are full raw URLs (so the list can span repos, e.g. an owner-wide search).
+async function loadSelectedKeymap(){
+  const sel = document.getElementById('gh-keymap-select');
+  if(!sel.value) return;
+  setStatus('loading','<span class="spinner"></span>Fetching…');
+  const label = sel.options[sel.selectedIndex].text;
+  if(await fetchRawInto([sel.value])) setStatus('ok','✓ '+label);
+}
+// Populate the dropdown from [{url,label}], show it, select the first.
+function fillKeymapSelect(items){
+  const sel = document.getElementById('gh-keymap-select');
+  sel.innerHTML = items.map(it=>`<option value="${esc(it.url)}">${esc(it.label)}</option>`).join('');
+  sel.selectedIndex = 0;
+  sel.style.display = items.length>1 ? '' : 'none';
+}
+
+// Find .keymap files in a repo via the GitHub API, then load (and offer a
+// dropdown if there's more than one).
+async function discoverAndLoad(ref){
+  const sel = document.getElementById('gh-keymap-select');
+  sel.style.display='none'; sel.innerHTML='';
+
+  let branch = ref.branch;
+  if(!branch){
+    const r = await githubApi(`https://api.github.com/repos/${ref.owner}/${ref.repo}`);
+    if(r.ok) branch = r.json.default_branch;
+    branch = branch || 'main';
+  }
+
+  const tr = await githubApi(`https://api.github.com/repos/${ref.owner}/${ref.repo}/git/trees/${branch}?recursive=1`);
+  if(!tr.ok){
+    setStatus('fail', tr.status===404 ? '✗ Repo or branch not found'
+      : (tr.status===403||tr.status===429) ? rateMsg()
+      : `✗ Repo tree HTTP ${tr.status||'(network error)'}`);
+    return;
+  }
+  const tree = tr.json.tree || [];
+  let keymaps = tree.filter(n=>n.type==='blob' && n.path.endsWith('.keymap')).map(n=>n.path);
+  if(ref.subdir) keymaps = keymaps.filter(p=>p===ref.subdir || p.startsWith(ref.subdir+'/'));
+  if(!keymaps.length){ setStatus('fail','✗ No ZMK <code>.keymap</code> in this repo (it may be a hardware/QMK repo). New to ZMK? Hit <b>New from scratch</b> or <b>Load Example</b> above - or paste / drag a <code>.keymap</code> file.'); return; }
+
+  keymaps = rankKeymaps(keymaps);
+  GH_LAST = { owner:ref.owner, repo:ref.repo, branch };
+  fillKeymapSelect(keymaps.map(p=>({url:rawUrl(p), label:p})));
+  setStatus('loading','<span class="spinner"></span>Fetching…');
+  if(await fetchRawInto([rawUrl(keymaps[0])]))
+    setStatus('ok', (keymaps.length>1?`✓ ${keymaps.length} keymaps · `:'✓ ')+keymaps[0]);
+}
+
+// Run async fn over items with bounded concurrency. GitHub's *secondary* rate limit
+// 403s on bursts of concurrent requests (independent of the 5,000/hr primary quota),
+// so owner-wide scans must not fire all tree calls at once. Small pool paces them.
+async function mapPool(items, limit, fn){
+  const out = new Array(items.length); let i = 0;
+  async function worker(){
+    while(i < items.length){ const idx = i++; try { out[idx] = await fn(items[idx], idx); } catch(e){ out[idx] = undefined; } }
+  }
+  await Promise.all(Array.from({length: Math.min(limit, items.length)}, worker));
+  return out;
+}
+
+// Search every (non-huge) repo of an owner for .keymap files and list
+// them all. Bounded API use: 1 repo-list call + 1 tree call per kept repo,
+// throttled to a few at a time to avoid GitHub's concurrent-burst (secondary) limit.
+async function discoverOwner(owner){
+  const sel = document.getElementById('gh-keymap-select');
+  sel.style.display='none'; sel.innerHTML='';
+  const rr = await githubApi(`https://api.github.com/users/${owner}/repos?per_page=100&sort=updated`);
+  if(!rr.ok){
+    setStatus('fail', rr.status===404 ? '✗ No such user/org'
+      : (rr.status===403||rr.status===429) ? rateMsg()
+      : `✗ Repo list HTTP ${rr.status||'(network error)'}`);
+    return;
+  }
+  // Include forks - most personal ZMK configs are forks of a template/another config, so
+  // skipping them hid people's own keymaps. Only skip very large repos (full firmware
+  // trees); the per-repo tree scan below means fork-without-keymap repos add no noise.
+  const repos = rr.json.filter(r=>r.size>0 && r.size<=80000);
+  if(!repos.length){ setStatus('fail',`✗ No suitable repos for ${owner} (only huge firmware trees were skipped)`); return; }
+  setStatus('loading',`<span class="spinner"></span>Scanning ${repos.length} repos…`);
+  const found=[]; const failed=[];
+  await mapPool(repos, 5, async r=>{
+    const tr=await githubApi(`https://api.github.com/repos/${owner}/${r.name}/git/trees/${r.default_branch}?recursive=1`);
+    if(!tr.ok){ failed.push({name:r.name, status:tr.status}); return; }   // don't silently drop a repo
+    for(const n of (tr.json.tree||[]))
+      if(n.type==='blob' && n.path.endsWith('.keymap')) found.push({repo:r.name, branch:r.default_branch, path:n.path});
+  });
+  if(!found.length){
+    const rl = failed.some(f=>f.status===403||f.status===429);
+    setStatus('fail', rl ? rateMsg()
+      : failed.length ? `✗ Couldn't scan ${failed.length} repo(s) (HTTP ${failed[0].status}); no keymaps found`
+      : `✗ No ZMK <code>.keymap</code> files in ${esc(owner)}'s repos. New to ZMK? Hit <b>New from scratch</b> or <b>Load Example</b> above - or paste / drag a <code>.keymap</code> file.`);
+    return;
+  }
+  found.sort((a,b)=> a.repo.localeCompare(b.repo) || keymapCmp(a.path,b.path));
+  fillKeymapSelect(found.map(f=>({
+    url:`https://raw.githubusercontent.com/${owner}/${f.repo}/${f.branch}/${f.path}`,
+    label:`${f.repo} / ${f.path}`,
+  })));
+  const repoCount=new Set(found.map(f=>f.repo)).size;
+  setStatus('loading','<span class="spinner"></span>Fetching…');
+  const f0=found[0], url0=`https://raw.githubusercontent.com/${owner}/${f0.repo}/${f0.branch}/${f0.path}`;
+  const warn = failed.length ? ` · ⚠ ${failed.length} repo(s) couldn’t be scanned (GitHub limit?)` : '';
+  if(await fetchRawInto([url0]))
+    setStatus('ok', `✓ ${found.length} keymaps in ${repoCount} repos${warn} · ${f0.repo}/${f0.path}`);
+}
+
+async function loadFromGitHub(){
+  const btnGh   = document.getElementById('btn-gh');
+  const inputEl = document.getElementById('gh-input');
+  const raw = (inputEl.value||'').trim() || GH_DEFAULT;
+  const ref = parseGitHubInput(raw);
+  if(!ref){ setStatus('fail','✗ Not a GitHub repo or keymap URL'); return; }
+
+  btnGh.disabled = true;
+  setStatus('loading','<span class="spinner"></span>'+(ref.kind==='owner'?'Finding repos…':ref.kind==='repo'?'Finding keymap…':'Fetching…'));
+  try{
+    try{ localStorage.setItem(GH_STORE_KEY, raw); }catch(e){}
+    if(ref.kind==='file'){
+      if(await fetchRawInto(ref.urls)) setStatus('ok','✓ Loaded');
+    } else if(ref.kind==='owner'){
+      await discoverOwner(ref.owner);
+    } else {
+      await discoverAndLoad(ref);
+    }
+  } finally { btnGh.disabled = false; }
+}
+
+// ── Example keymap ───────────────────────────────────────────────────────────
+const EXAMPLE = `/*
+ * ZMK Corne 36-key example keymap
+ */
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/bt.h>
+
+/ {
+    combos {
+        compatible = "zmk,combos";
+        combo_esc {
+            timeout-ms = <50>;
+            key-positions = <1 2>;
+            bindings = <&kp ESC>;
+        };
+        combo_bspc {
+            timeout-ms = <50>;
+            key-positions = <9 10>;
+            bindings = <&kp BSPC>;
+        };
+        combo_caps {
+            timeout-ms = <50>;
+            key-positions = <11 12>;
+            bindings = <&kp CAPS>;
+            layers = <0>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+   &none  &kp Q       &kp W  &kp E  &kp R  &kp T      &kp Y  &kp U  &kp I      &kp O    &kp P          &none
+   &none  &kp A       &kp S  &kp D  &kp F  &kp G      &kp H  &kp J  &kp K      &kp L    &kp SEMI       &none
+   &none  &mt LSHFT Z &kp X  &kp C  &kp V  &kp B      &kp N  &kp M  &kp COMMA  &kp DOT  &mt RSHFT FSLH &none
+                  &mo 1  &kp LCTRL  &kp SPACE      &kp BSPC  &sk LSHFT  &mo 2
+            >;
+        };
+
+        lower_layer {
+            bindings = <
+   &none  &kp N1    &kp N2  &kp N3    &kp N4    &kp N5      &kp N6     &kp N7    &kp N8    &kp N9    &kp N0    &none
+   &none  &kp EXCL  &kp AT  &kp HASH  &kp DLLR  &kp PRCNT   &kp CARET  &kp AMPS  &kp STAR  &kp LPAR  &kp RPAR  &none
+   &none  &trans    &trans  &trans    &trans    &trans      &kp MINUS  &kp PLUS  &kp LBKT  &kp RBKT  &kp BSLH  &none
+                   &trans  &trans  &trans      &kp RET  &trans  &mo 3
+            >;
+        };
+
+        upper_layer {
+            bindings = <
+   &none  &kp TAB   &kp HOME  &kp UP    &kp END    &kp PG_UP   &none  &kp F7  &kp F8  &kp F9  &kp F10  &none
+   &none  &kp CAPS  &kp LEFT  &kp DOWN  &kp RIGHT  &kp PG_DN   &none  &kp F4  &kp F5  &kp F6  &kp F11  &none
+   &none  &trans    &trans    &trans    &trans     &trans      &none  &kp F1  &kp F2  &kp F3  &kp F12  &none
+                  &mo 3  &trans  &trans      &trans  &trans  &trans
+            >;
+        };
+
+        adjust_layer {
+            bindings = <
+   &none  &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2  &bt BT_SEL 3  &bt BT_SEL 4   &none  &none  &none  &none  &none  &none
+   &none  &bt BT_CLR    &none         &none          &none          &none          &none  &none  &none  &none  &none  &none
+   &none  &none         &none         &none          &none          &bootloader    &none  &none  &none  &none  &none  &none
+                        &trans  &trans  &trans      &trans  &trans  &trans
+            >;
+        };
+    };
+};`;
+
+// ── Editor ───────────────────────────────────────────────────────────────────
+// Built on the round-trip-safe engine (editor-engine.js). EDIT_MODEL is parsed
+// from the RAW textarea; an edit splices a single binding token's span. Structured
+// (click) editing is enabled only when the raw parse aligns 1:1 with the rendered
+// layers; otherwise we fall back to raw-source editing (template-generated keymaps).
+// The editor is always on - there is no separate view/edit mode. EDIT_MODE stays true
+// so renders always emit editable keys; the toolbar simply appears once a keymap renders.
+var EDIT_MODE = true, EDIT_STRUCTURED = false, EDIT_MODEL = null,
+    EDIT_HISTORY = null, CUR_LI = null, EDIT_CUR = null;
+
+// Layer view: 'all' (stacked cards) or 'single' (pill strip + one layer). Persisted.
+var LAYER_VIEW = (function(){ try{ return localStorage.getItem('ck_layer_view')==='single' ? 'single' : 'all'; }catch(e){ return 'all'; } })();
+var ACTIVE_LAYER = 0, LAYER_COUNT = 0;
+function setLayerView(v){
+  LAYER_VIEW = (v==='single') ? 'single' : 'all';
+  try{ localStorage.setItem('ck_layer_view', LAYER_VIEW); }catch(e){}
+  render(); updateViewToggle();
+}
+function toggleLayerView(){ setLayerView(LAYER_VIEW==='all' ? 'single' : 'all'); }
+function updateViewToggle(){
+  const v = document.getElementById('legend-view'); if(!v) return;
+  v.style.display = (LAYER_COUNT > 1) ? '' : 'none';
+  v.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-v') === LAYER_VIEW));
+}
+// Board-version chooser (e.g. 36-key Corne vs 42-key): only shown when we detect snappable
+// outer columns. Labels carry the actual key counts (trimmed vs full).
+function setBoardView(v){ BOARD_FULL = (v === 'full'); BOARD_USER_SET = true; BOARD_ASK = false; render(); updateBoardChooser(); }
+function updateBoardChooser(){
+  const wrap = document.getElementById('legend-snap'); if(!wrap) return;
+  if(SNAP_COLS <= 0){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  wrap.querySelector('[data-bv="trim"]').textContent = (SNAP_FULL - SNAP_HIDE_COUNT) + '-key';
+  wrap.querySelector('[data-bv="full"]').textContent = SNAP_FULL + '-key';
+  wrap.querySelector('.lv-label').textContent = BOARD_ASK ? 'Which version?' : 'Version';
+  wrap.classList.toggle('asking', BOARD_ASK);
+  // While asking (no name hint) don't pre-highlight a choice - make the user pick.
+  wrap.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', !BOARD_ASK && (b.getAttribute('data-bv')==='full') === BOARD_FULL));
+}
+// Pill strip: click a pill to view that layer; drag to reorder (keeps drag-reorder working
+// in single-layer mode). Click vs drag is disambiguated by the browser (drag suppresses click).
+let DRAG_PLI = null;
+function clearPillMarks(){ document.querySelectorAll('.layer-pill.drop-before,.layer-pill.drop-after').forEach(p=>p.classList.remove('drop-before','drop-after')); }
+document.addEventListener('click', function(e){
+  const p = e.target.closest && e.target.closest('.layer-pill'); if(!p) return;
+  const i = parseInt(p.getAttribute('data-pli'),10);
+  if(i!==ACTIVE_LAYER){ ACTIVE_LAYER = i; render(); }
+});
+document.addEventListener('dragstart', e=>{
+  const p = e.target.closest && e.target.closest('.layer-pill[draggable="true"]'); if(!p) return;
+  DRAG_PLI = parseInt(p.getAttribute('data-pli'),10); p.classList.add('dragging');
+  try{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', String(DRAG_PLI)); }catch(_){}
+});
+document.addEventListener('dragover', e=>{
+  if(DRAG_PLI==null) return;
+  const p = e.target.closest && e.target.closest('.layer-pill'); if(!p) return;
+  e.preventDefault(); clearPillMarks();
+  const r=p.getBoundingClientRect();
+  p.classList.add(e.clientX > r.left + r.width/2 ? 'drop-after' : 'drop-before');
+});
+document.addEventListener('drop', e=>{
+  if(DRAG_PLI==null) return;
+  const p = e.target.closest && e.target.closest('.layer-pill'); if(!p){ DRAG_PLI=null; clearPillMarks(); return; }
+  e.preventDefault();
+  const targetIdx = parseInt(p.getAttribute('data-pli'),10);
+  const r=p.getBoundingClientRect();
+  const ins = targetIdx + (e.clientX > r.left + r.width/2 ? 1 : 0);
+  const from = DRAG_PLI, to = ins>from ? ins-1 : ins;
+  DRAG_PLI=null; clearPillMarks();
+  if(to!==from){ ACTIVE_LAYER = to; moveLayerUI(from, to); }   // follow the layer you moved
+});
+document.addEventListener('dragend', ()=>{ DRAG_PLI=null; clearPillMarks(); document.querySelectorAll('.layer-pill.dragging').forEach(p=>p.classList.remove('dragging')); });
+
+function buildEditModel(renderedLayers){
+  if(typeof KeymapEngine === 'undefined'){ EDIT_STRUCTURED = false; return; }
+  EDIT_MODEL = KeymapEngine.parseKeymap(document.getElementById('inp').value);
+  EDIT_STRUCTURED = !!renderedLayers && EDIT_MODEL.layers.length === renderedLayers.length
+    && renderedLayers.every((L,i)=> EDIT_MODEL.layers[i] && EDIT_MODEL.layers[i].tokens.length === L.bindings.length);
+}
+
+// Wire up editor chrome; called at the end of every render(). The editor is always on,
+// so this just reflects whether a keymap is currently rendered.
+function afterRender(){
+  const out = document.getElementById('out');
+  const hasKeys = !!(out && out.querySelector('.key'));
+  // Create the undo baseline the first time a (freshly loaded) keymap renders.
+  if(hasKeys && !EDIT_HISTORY && typeof KeymapEngine !== 'undefined')
+    EDIT_HISTORY = new KeymapEngine.History(document.getElementById('inp').value);
+  out.classList.toggle('editing', hasKeys && EDIT_STRUCTURED);
+  document.getElementById('editor-bar').classList.toggle('on', hasKeys);
+  updateViewToggle();
+  updateBoardChooser();
+
+  let note = document.getElementById('edit-raw-note');
+  if(hasKeys && !EDIT_STRUCTURED){
+    if(!note){ note = document.createElement('div'); note.id='edit-raw-note'; note.className='edit-note';
+      document.getElementById('editor-bar').insertAdjacentElement('afterend', note); }
+    note.innerHTML = "This keymap is built from C-preprocessor templates, so its keys aren't written out "
+      + "one-by-one in the file - there's nothing literal to click. Edit it as text in the box above and the "
+      + "preview updates live as you type.";
+  } else if(note){ note.remove(); }
+
+  if(hasKeys){
+    const u=document.getElementById('eb-undo'), r=document.getElementById('eb-redo');
+    u.disabled = !(EDIT_HISTORY && EDIT_HISTORY.canUndo());
+    r.disabled = !(EDIT_HISTORY && EDIT_HISTORY.canRedo());
+    document.getElementById('eb-hint').textContent = EDIT_STRUCTURED
+      ? 'Click any key to change what it does.'
+      : 'Structured editing isn’t available for this keymap (see the note below).';
+  }
+}
+
+// Delegated click → open the key editor.
+document.addEventListener('click', function(e){
+  if(!EDIT_MODE || !EDIT_STRUCTURED || !e.target.closest) return;
+  const rn = e.target.closest('.lay-rename');
+  if(rn){ renameLayerUI(parseInt(rn.getAttribute('data-rli'),10)); return; }
+  const dl = e.target.closest('.lay-del');
+  if(dl){ deleteLayerUI(parseInt(dl.getAttribute('data-dli'),10)); return; }
+  const cr = e.target.closest('.combo-rm');
+  if(cr){ removeComboUI(parseInt(cr.getAttribute('data-ci'),10)); return; }
+  const k = e.target.closest('.key[data-ki]');
+  if(!k) return;
+  if(COMBO_BUILD){ toggleComboKey(parseInt(k.getAttribute('data-ki'),10), k); return; }
+  openKeyEditor(parseInt(k.getAttribute('data-li'),10), parseInt(k.getAttribute('data-ki'),10));
+});
+
+function addLayerUI(){
+  if(!EDIT_MODEL){ alert('Render a keymap first.'); return; }
+  if(!EDIT_STRUCTURED){ alert('Structured editing isn’t available for this keymap (template-generated).'); return; }
+  const name = prompt('New layer name (e.g. nav, num, sym). It will be added at the end, all keys transparent:', '');
+  if(name==null || !name.trim()) return;
+  let t; try{ t = KeymapEngine.addLayer(EDIT_MODEL, name); }catch(err){ alert(err.message); return; }
+  document.getElementById('inp').value = t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+function renameLayerUI(i){
+  if(!EDIT_MODEL || !EDIT_MODEL.layers[i]) return;
+  const cur = EDIT_MODEL.layers[i].name;
+  const name = prompt('Rename layer "'+cur+'" to:', cur);
+  if(name==null) return;
+  let t; try{ t = KeymapEngine.renameLayer(EDIT_MODEL, i, name); }catch(err){ alert(err.message); return; }
+  document.getElementById('inp').value = t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+
+function deleteLayerUI(i){
+  if(!EDIT_MODEL || !EDIT_MODEL.layers[i]) return;
+  if(EDIT_MODEL.layers.length <= 1){ alert('You can’t delete the only layer.'); return; }
+  const name = EDIT_MODEL.layers[i].name;
+  const refs = KeymapEngine.countLayerRefs(EDIT_MODEL, i);
+  let msg = 'Delete layer “'+name+'” (Layer '+i+')?';
+  msg += refs > 0
+    ? '\n\n'+refs+' key'+(refs>1?'s':'')+' point to this layer - they’ll become disabled (&none). The remaining layers are renumbered automatically.'
+    : '\n\nThe remaining layers are renumbered automatically.';
+  if(!confirm(msg)) return;
+  let t; try{ t = KeymapEngine.deleteLayer(EDIT_MODEL, i); }catch(err){ alert(err.message); return; }
+  if(KeymapEngine.parseKeymap(t).layers.length !== EDIT_MODEL.layers.length - 1){
+    alert('Delete aborted - unexpected layer count after the edit. Nothing changed.'); return;
+  }
+  document.getElementById('inp').value = t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+
+function moveLayerUI(from, to){
+  if(!EDIT_MODEL || from===to) return;
+  const before = EDIT_MODEL.layers.length;
+  let t; try{ t = KeymapEngine.moveLayer(EDIT_MODEL, from, to); }catch(err){ alert(err.message); return; }
+  if(KeymapEngine.parseKeymap(t).layers.length !== before){
+    alert('Reorder aborted - layer count changed unexpectedly. Nothing changed.'); return;
+  }
+  document.getElementById('inp').value = t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+
+// ── Layer drag-and-drop reorder ──
+// Dragging is gated behind the ⠿ handle (so clicking keys never starts a drag).
+let DRAG_LI = null;
+function clearDropMarks(){ document.querySelectorAll('.layer-card.drop-before,.layer-card.drop-after').forEach(c=>c.classList.remove('drop-before','drop-after')); }
+function cleanupDrag(){ clearDropMarks(); document.querySelectorAll('.layer-card.dragging').forEach(c=>{c.classList.remove('dragging'); c.draggable=false;}); DRAG_LI=null; }
+document.addEventListener('mousedown', e=>{ const h=e.target.closest&&e.target.closest('.lay-drag'); if(h){ const c=h.closest('.layer-card'); if(c) c.draggable=true; } });
+document.addEventListener('dragstart', e=>{
+  const c=e.target.closest&&e.target.closest('.layer-card[data-li]');
+  if(!c || c.draggable!==true){ return; }
+  DRAG_LI=parseInt(c.getAttribute('data-li'),10); c.classList.add('dragging');
+  try{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',String(DRAG_LI)); }catch(_){}
+});
+document.addEventListener('dragover', e=>{
+  if(DRAG_LI==null) return;
+  const c=e.target.closest&&e.target.closest('.layer-card[data-li]'); if(!c) return;
+  e.preventDefault(); clearDropMarks();
+  const r=c.getBoundingClientRect();
+  c.classList.add(e.clientY > r.top + r.height/2 ? 'drop-after' : 'drop-before');
+});
+document.addEventListener('drop', e=>{
+  if(DRAG_LI==null) return;
+  const c=e.target.closest&&e.target.closest('.layer-card[data-li]'); if(!c){ cleanupDrag(); return; }
+  e.preventDefault();
+  const targetIdx=parseInt(c.getAttribute('data-li'),10);
+  const r=c.getBoundingClientRect();
+  const ins = targetIdx + (e.clientY > r.top + r.height/2 ? 1 : 0);   // 0..n insertion slot
+  const from=DRAG_LI, to = ins>from ? ins-1 : ins;                    // adjust for self-removal
+  cleanupDrag();
+  if(to!==from) moveLayerUI(from, to);
+});
+document.addEventListener('dragend', cleanupDrag);
+
+// ── Feedback / feature request ──
+const FEEDBACK_URL = 'https://tally.so/r/xXz22v';   // Tally feedback / feature-request form
+function openFeedback(){ if(FEEDBACK_URL) window.open(FEEDBACK_URL, '_blank', 'noopener'); }
+(function(){ if(FEEDBACK_URL){ var b=document.getElementById('feedback-btn'); if(b) b.style.display=''; } })();
+
+// ── GitHub OAuth + commit-back ──
+// Token lives only in this browser session; commits go browser → GitHub directly.
+function ghStoredToken(){ try{ return sessionStorage.getItem('ck_gh_token')||''; }catch(e){ return ''; } }
+function ghStoredScope(){ try{ return sessionStorage.getItem('ck_gh_scope')||''; }catch(e){ return ''; } }
+function ghDisconnect(){ try{ sessionStorage.removeItem('ck_gh_token'); sessionStorage.removeItem('ck_gh_scope'); }catch(e){} }
+function ghErrMsg(c){ return ({
+  not_configured:'GitHub sign-in isn’t set up on the server yet.',
+  state_mismatch:'Security check failed - please try again.',
+  no_token:'GitHub didn’t return a token.',
+  exchange_failed:'Token exchange failed.'
+})[c] || ('Sign-in failed'+(c?' ('+c+')':'')); }
+
+// Open the OAuth popup, resolve with {token,scope} once the callback posts back.
+function ghConnect(scope){
+  return new Promise((resolve, reject)=>{
+    const w = window.open('/api/oauth/login?scope='+encodeURIComponent(scope||'public_repo'), 'ckgh', 'width=720,height=820');
+    if(!w){ reject(new Error('Popup blocked - allow popups for this site and try again.')); return; }
+    let done=false;
+    function onMsg(e){
+      if(e.origin!==location.origin || !e.data || e.data.type!=='ck-gh-oauth') return;
+      done=true; cleanup();
+      if(e.data.token){ try{ sessionStorage.setItem('ck_gh_token', e.data.token); sessionStorage.setItem('ck_gh_scope', e.data.scope||''); }catch(_){}
+        resolve(e.data); }
+      else reject(new Error(ghErrMsg(e.data.error)));
+    }
+    function cleanup(){ window.removeEventListener('message', onMsg); clearInterval(iv); }
+    window.addEventListener('message', onMsg);
+    const iv=setInterval(()=>{ if(w.closed && !done){ cleanup(); reject(new Error('Sign-in window closed before completing.')); } }, 600);
+  });
+}
+
+// UTF-8 → base64, chunked (safe for larger keymaps).
+function b64utf8(str){
+  const bytes=new TextEncoder().encode(str); let bin='';
+  for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+  return btoa(bin);
+}
+function ghApi(url, opts){
+  return fetch(url, Object.assign({}, opts, { headers: Object.assign({
+    'Authorization':'Bearer '+ghStoredToken(), 'Accept':'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'
+  }, (opts&&opts.headers)||{}) }));
+}
+
+function openCommitModal(){
+  if(!document.getElementById('inp').value.trim()){ alert('Nothing to commit - render a keymap first.'); return; }
+  if(!LOADED_SRC || !LOADED_SRC.path){
+    alert('Commit-to-GitHub works on a keymap loaded from a GitHub repo (so we know where to save it). Load one via the GitHub box above, or use “Download .keymap”.');
+    return;
+  }
+  const s = LOADED_SRC;
+  document.getElementById('commit-target').innerHTML = 'Saving to <b>'+esc(s.owner+'/'+s.repo)+'</b> · <code>'+esc(s.path)+'</code> on branch <code>'+esc(s.branch)+'</code>.';
+  document.getElementById('commit-msg').value = 'Update '+s.path.split('/').pop()+' via customkeymap';
+  document.getElementById('commit-status').textContent = ghStoredToken() ? 'Signed in to GitHub.' : 'You’ll be asked to sign in to GitHub.';
+  const log=document.getElementById('commit-log'); log.style.display='none'; log.innerHTML='';
+  document.getElementById('commit-go').disabled=false;
+  document.getElementById('commitmodal').classList.add('on');
+}
+function closeCommitModal(){ document.getElementById('commitmodal').classList.remove('on'); }
+function commitLog(m){ const el=document.getElementById('commit-log'); el.style.display='block'; const d=document.createElement('div'); d.textContent=m; el.appendChild(d); el.scrollTop=el.scrollHeight; }
+function commitSetStatus(html){ document.getElementById('commit-status').innerHTML = html; }
+
+async function doCommit(){
+  const s = LOADED_SRC; if(!s){ return; }
+  const go=document.getElementById('commit-go'); go.disabled=true;
+  try{
+    if(!ghStoredToken()){ commitSetStatus('<span class="spinner"></span>Opening GitHub sign-in…'); await ghConnect('public_repo'); }
+    const message=(document.getElementById('commit-msg').value||'Update keymap').trim();
+    const content=b64utf8(document.getElementById('inp').value);
+    const pathEnc=s.path.split('/').map(encodeURIComponent).join('/');
+    const base=`https://api.github.com/repos/${s.owner}/${s.repo}/contents/${pathEnc}`;
+    commitSetStatus('<span class="spinner"></span>Checking current file…'); commitLog('GET '+s.path);
+    let sha=null;
+    const g=await ghApi(base+'?ref='+encodeURIComponent(s.branch));
+    if(g.status===200){ sha=(await g.json()).sha; }
+    else if(g.status===401){ ghDisconnect(); throw new Error('Session expired - click Commit to sign in again.'); }
+    else if(g.status!==404){ commitLog('current-file check: HTTP '+g.status); }
+    commitSetStatus('<span class="spinner"></span>Committing…'); commitLog('PUT '+s.path);
+    const put=await ghApi(base, { method:'PUT', body: JSON.stringify(Object.assign({ message, content, branch:s.branch }, sha?{sha}:{})) });
+    if(put.ok){
+      const d=await put.json(); const link=(d.commit&&d.commit.html_url)||'';
+      commitLog('✓ committed'); commitSetStatus('✓ Committed - <a href="'+esc(link)+'" target="_blank" rel="noopener">view commit →</a>');
+      return;
+    }
+    const err=await put.json().catch(()=>({}));
+    if(put.status===404||put.status===403){
+      commitLog('write rejected: HTTP '+put.status+(err.message?' - '+err.message:''));
+      commitSetStatus('Couldn’t write (the repo may be private, or you may lack write access). '
+        + '<button class="btn-s" style="padding:4px 9px;margin:4px 4px 0 0" onclick="stepUpCommit()">Grant private-repo access</button>'
+        + '<button class="btn-s" style="padding:4px 9px" onclick="downloadEditedKeymap()">Just download</button>');
+    } else if(put.status===409){
+      commitSetStatus('✗ Conflict - the file changed on GitHub since you loaded it. Reload it and re-apply your edit.');
+    } else {
+      commitSetStatus('✗ Commit failed: HTTP '+put.status+(err.message?' - '+esc(err.message):''));
+    }
+  }catch(e){ commitSetStatus('✗ '+esc(e.message||String(e))); }
+  finally{ go.disabled=false; }
+}
+async function stepUpCommit(){
+  try{ ghDisconnect(); commitSetStatus('<span class="spinner"></span>Re-authorising with private-repo access…'); await ghConnect('repo'); doCommit(); }
+  catch(e){ commitSetStatus('✗ '+esc(e.message||String(e))); }
+}
+
+// ── Theme (dark mode) ──
+function syncThemeIcon(){
+  const dark = document.documentElement.getAttribute('data-theme')==='dark';
+  const b = document.getElementById('theme-toggle');
+  if(b){ b.textContent = dark ? '☀️' : '🌙'; b.title = dark ? 'Switch to light mode' : 'Switch to dark mode'; }
+}
+function toggleTheme(){
+  const dark = document.documentElement.getAttribute('data-theme')==='dark';
+  const next = dark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try{ localStorage.setItem('ck_theme', next); }catch(e){}
+  syncThemeIcon();
+}
+syncThemeIcon();
+
+// ── BYOK AI editor ──
+let AI_PENDING = null;   // proposed new keymap text awaiting Apply/Discard
+function aiProviderChanged(){
+  const p = document.getElementById('ai-provider').value;
+  const keyEl = document.getElementById('ai-key');
+  try{ keyEl.value = localStorage.getItem('ck_ai_key_'+p) || ''; }catch(e){}
+  const savedModel = (()=>{ try{ return localStorage.getItem('ck_ai_model_'+p); }catch(e){ return null; } })();
+  document.getElementById('ai-remember').checked = !!keyEl.value;
+  populateModels(AIEditor.MODEL_SUGGESTIONS[p]||[], savedModel || AIEditor.DEFAULT_MODELS[p]);
+  document.getElementById('ai-model-hint').innerHTML =
+    'Tip: click ↻ Load to list the models your key can use. <a href="'+AIEditor.MODEL_DOCS[p]+'" target="_blank" rel="noopener">'+(p==='openai'?'OpenAI':'Anthropic')+'’s model list →</a>';
+}
+// Fill the model <select> with options; keep `selected` visible/selected even if not in `ids`.
+function populateModels(ids, selected){
+  const sel = document.getElementById('ai-model-sel');
+  const opts = ids.slice();
+  if(selected && opts.indexOf(selected) < 0) opts.unshift(selected);
+  sel.innerHTML = opts.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')
+    + '<option value="__custom__">Other / type a model…</option>';
+  if(selected) sel.value = selected;
+}
+function aiModel(){ const sel=document.getElementById('ai-model-sel'); return sel && sel.value && sel.value!=='__custom__' ? sel.value : ''; }
+function aiModelSelChanged(){
+  const sel = document.getElementById('ai-model-sel');
+  if(sel.value === '__custom__'){
+    const v = prompt('Enter the exact model id:', '');
+    if(v && v.trim()){
+      const id = v.trim();
+      if(![...sel.options].some(o=>o.value===id)) sel.insertBefore(new Option(id, id), sel.lastElementChild);
+      sel.value = id;
+    } else { sel.selectedIndex = 0; }
+  }
+}
+function openAIEditor(){
+  if(!EDIT_MODEL){ alert('Render a keymap first.'); return; }
+  if(!EDIT_STRUCTURED){ alert('Structured editing isn’t available for this keymap, so the AI editor can’t run on it.'); return; }
+  try{ document.getElementById('ai-provider').value = localStorage.getItem('ck_ai_provider') || 'anthropic'; }catch(e){}
+  aiProviderChanged();
+  aiResetOutput();
+  document.getElementById('ai-instruction').value = '';
+  document.getElementById('aimodal').classList.add('on');
+  if(document.getElementById('ai-key').value.trim()) aiFetchModels(true);   // auto-load if key already saved
+}
+function closeAIEditor(){ document.getElementById('aimodal').classList.remove('on'); }
+// Fetch the exact models this key can use and populate the dropdown (no guessing).
+async function aiFetchModels(silent){
+  const provider = document.getElementById('ai-provider').value;
+  const key = document.getElementById('ai-key').value.trim();
+  if(!key){ if(!silent) alert('Enter your API key first.'); return; }
+  const st = document.getElementById('ai-status');
+  const btn = document.getElementById('ai-loadmodels'); if(btn) btn.disabled = true;
+  st.innerHTML = '<span class="spinner"></span>Loading models…';
+  try{
+    const ids = await AIEditor.listModels({ provider, apiKey: key });
+    if(ids.length){
+      const cur = aiModel();
+      const pick = ids.includes(cur) ? cur : (ids.find(id=>/sonnet/i.test(id)) || ids[0]);
+      populateModels(ids, pick);
+      st.textContent = 'Loaded '+ids.length+' models - choose one above.';
+    } else st.textContent = 'No models returned for this key.';
+  }catch(e){
+    st.textContent = silent ? '' : '';
+    if(silent) aiLog('warn','Could not auto-load models: '+e.message);
+    else alert('Couldn’t load models: '+e.message);
+  }finally{ if(btn) btn.disabled = false; }
+}
+function aiResetOutput(){
+  AI_PENDING = null;
+  document.getElementById('ai-log').style.display='none'; document.getElementById('ai-log').innerHTML='';
+  document.getElementById('ai-diff').style.display='none'; document.getElementById('ai-diff').innerHTML='';
+  document.getElementById('ai-status').textContent='';
+  document.getElementById('ai-apply').style.display='none';
+  document.getElementById('ai-discard').style.display='none';
+  document.getElementById('ai-go').style.display='';
+}
+function aiLog(kind, msg){
+  const el = document.getElementById('ai-log'); el.style.display='block';
+  const cls = {ai:'l-ai', tool:'l-tool', warn:'l-warn', err:'l-err'}[kind] || '';
+  const div = document.createElement('div'); div.className = cls; div.textContent = (kind==='tool'?'• ':kind==='ai'?'🤖 ':'')+msg;
+  el.appendChild(div); el.scrollTop = el.scrollHeight;
+}
+async function aiPropose(){
+  if(!EDIT_MODEL) return;
+  const provider = document.getElementById('ai-provider').value;
+  const apiKey = document.getElementById('ai-key').value.trim();
+  const model = aiModel() || AIEditor.DEFAULT_MODELS[provider];
+  const instruction = document.getElementById('ai-instruction').value.trim();
+  if(!apiKey){ alert('Enter your '+provider+' API key.'); return; }
+  if(!model){ alert('Pick a model (click ↻ Load to list yours).'); return; }
+  if(!instruction){ alert('Describe what you want changed.'); return; }
+  // persist preferences (key only if "remember")
+  try{
+    localStorage.setItem('ck_ai_provider', provider);
+    localStorage.setItem('ck_ai_model_'+provider, model);
+    if(document.getElementById('ai-remember').checked) localStorage.setItem('ck_ai_key_'+provider, apiKey);
+    else localStorage.removeItem('ck_ai_key_'+provider);
+  }catch(e){}
+  aiResetOutput();
+  const go = document.getElementById('ai-go'); go.disabled = true;
+  document.getElementById('ai-status').innerHTML = '<span class="spinner"></span>Thinking…';
+  const driver = provider==='openai'
+    ? AIEditor.openaiDriver({apiKey, model})
+    : AIEditor.anthropicDriver({apiKey, model});
+  try{
+    const res = await AIEditor.runAgent(driver, { instruction, keymapText: document.getElementById('inp').value, onLog: aiLog });
+    // validate the result re-parses
+    const reparsed = KeymapEngine.parseKeymap(res.newText);
+    if(!reparsed.layers.length) throw new Error('result did not parse into layers');
+    AI_PENDING = res.newText;
+    aiShowDiff(res.summary, res.finalText);
+    go.style.display='none';
+    if(res.newText === document.getElementById('inp').value){
+      document.getElementById('ai-status').textContent = 'No changes were made.';
+    } else {
+      document.getElementById('ai-apply').style.display='';
+      document.getElementById('ai-discard').style.display='';
+      document.getElementById('ai-status').textContent = 'Review the diff, then Apply.';
+    }
+  }catch(err){
+    aiLog('err', err.message || String(err));
+    document.getElementById('ai-status').textContent = 'Failed - see log above.';
+    go.style.display='';
+  }finally{ go.disabled = false; }
+}
+function aiShowDiff(summary, finalText){
+  const el = document.getElementById('ai-diff'); el.style.display='block';
+  // Neutral, authoritative diff. The AI's prose stays in the log above; we don't echo it
+  // here (models tend to say "done", which reads as already-applied before you Apply).
+  let h = '<h4>Proposed - not applied until you click “Apply changes”</h4>';
+  h += summary.map(l=>`<div class="d-line">${esc(l)}</div>`).join('');
+  el.innerHTML = h;
+}
+function aiApply(){
+  if(AI_PENDING == null) return;
+  const t = AI_PENDING;
+  document.getElementById('inp').value = t;
+  if(EDIT_HISTORY) EDIT_HISTORY.push(t);
+  AI_PENDING = null;
+  closeAIEditor();
+  render();
+}
+function aiDiscard(){ aiResetOutput(); }
+
+// ── Key-editor modal ──
+const BEHAVIORS = [
+  {id:'kp',   group:'Keys & layers', label:'Key press',            tmpl:'&kp {kc}',         needs:['kc'],          help:'Types a single key when pressed - the normal thing a key does.'},
+  {id:'mt',   group:'Keys & layers', label:'Mod-tap (hold / tap)', tmpl:'&mt {mod} {kc}',   needs:['mod','kc'],    help:'Hold for a modifier (e.g. Shift), tap for a normal key. Great for home-row mods.'},
+  {id:'lt',   group:'Keys & layers', label:'Layer-tap (hold / tap)',tmpl:'&lt {layer} {kc}', needs:['layer','kc'], help:'Hold to switch to another layer, tap for a normal key.'},
+  {id:'mo',   group:'Keys & layers', label:'Momentary layer (hold)',tmpl:'&mo {layer}',      needs:['layer'],      help:'Activates a layer only while you hold the key (like Shift, but for a layer).'},
+  {id:'to',   group:'Keys & layers', label:'Switch to layer',      tmpl:'&to {layer}',      needs:['layer'],      help:'Switches to a layer and stays there until something switches back.'},
+  {id:'tog',  group:'Keys & layers', label:'Toggle layer',         tmpl:'&tog {layer}',     needs:['layer'],      help:'Turns a layer on/off - press once on, press again off.'},
+  {id:'sl',   group:'Keys & layers', label:'Sticky layer',         tmpl:'&sl {layer}',      needs:['layer'],      help:'Applies a layer to just the next key you press, then reverts.'},
+  {id:'sk',   group:'Keys & layers', label:'Sticky key (modifier)',tmpl:'&sk {mod}',        needs:['mod'],         help:'Applies a modifier to just the next key - tap Shift then a letter for a capital.'},
+  {id:'trans',group:'Keys & layers', label:'Transparent (▽)',      tmpl:'&trans',           needs:[],             help:'“Falls through” to whatever this key does on the layer below.'},
+  {id:'none', group:'Keys & layers', label:'Disabled (✗)',         tmpl:'&none',            needs:[],             help:'Does nothing - a dead key.'},
+
+  {id:'media',group:'Media', label:'Media / volume', tmpl:'{opt}', needs:['opt'], optLabel:'Media key', help:'Volume, playback and screen-brightness keys.', options:[
+    {v:'&kp C_MUTE',label:'Mute'},{v:'&kp C_VOL_UP',label:'Volume up'},{v:'&kp C_VOL_DN',label:'Volume down'},
+    {v:'&kp C_PP',label:'Play / pause'},{v:'&kp C_NEXT',label:'Next track'},{v:'&kp C_PREV',label:'Previous track'},
+    {v:'&kp C_STOP',label:'Stop'},{v:'&kp C_BRI_UP',label:'Brightness up'},{v:'&kp C_BRI_DN',label:'Brightness down'}]},
+
+  {id:'mkp',  group:'Mouse', label:'Mouse click',  tmpl:'{opt}', needs:['opt'], optLabel:'Button', help:'Mouse button click (requires ZMK pointing enabled).', options:[
+    {v:'&mkp LCLK',label:'Left click'},{v:'&mkp RCLK',label:'Right click'},{v:'&mkp MCLK',label:'Middle click'},
+    {v:'&mkp MB4',label:'Back (button 4)'},{v:'&mkp MB5',label:'Forward (button 5)'}]},
+  {id:'mmv',  group:'Mouse', label:'Mouse move',   tmpl:'{opt}', needs:['opt'], optLabel:'Direction', help:'Move the mouse pointer (requires ZMK pointing).', options:[
+    {v:'&mmv MOVE_UP',label:'Up'},{v:'&mmv MOVE_DOWN',label:'Down'},{v:'&mmv MOVE_LEFT',label:'Left'},{v:'&mmv MOVE_RIGHT',label:'Right'}]},
+  {id:'msc',  group:'Mouse', label:'Mouse scroll', tmpl:'{opt}', needs:['opt'], optLabel:'Direction', help:'Scroll wheel (requires ZMK pointing).', options:[
+    {v:'&msc SCRL_UP',label:'Up'},{v:'&msc SCRL_DOWN',label:'Down'},{v:'&msc SCRL_LEFT',label:'Left'},{v:'&msc SCRL_RIGHT',label:'Right'}]},
+
+  {id:'bt',   group:'Bluetooth & system', label:'Bluetooth', tmpl:'{opt}', needs:['opt'], optLabel:'Action', help:'Switch/manage Bluetooth profiles.', options:[
+    {v:'&bt BT_SEL 0',label:'Select profile 0'},{v:'&bt BT_SEL 1',label:'Select profile 1'},{v:'&bt BT_SEL 2',label:'Select profile 2'},
+    {v:'&bt BT_SEL 3',label:'Select profile 3'},{v:'&bt BT_SEL 4',label:'Select profile 4'},
+    {v:'&bt BT_NXT',label:'Next profile'},{v:'&bt BT_PRV',label:'Previous profile'},
+    {v:'&bt BT_CLR',label:'Clear this profile'},{v:'&bt BT_CLR_ALL',label:'Clear all profiles'}]},
+  {id:'out',  group:'Bluetooth & system', label:'Output (USB / BLE)', tmpl:'{opt}', needs:['opt'], optLabel:'Output', help:'Choose where keystrokes are sent.', options:[
+    {v:'&out OUT_TOG',label:'Toggle USB / Bluetooth'},{v:'&out OUT_USB',label:'USB'},{v:'&out OUT_BLE',label:'Bluetooth'}]},
+  {id:'rgb',  group:'Bluetooth & system', label:'RGB underglow', tmpl:'{opt}', needs:['opt'], optLabel:'Action', help:'Control RGB underglow lighting.', options:[
+    {v:'&rgb_ug RGB_TOG',label:'Toggle on/off'},{v:'&rgb_ug RGB_EFF',label:'Next effect'},{v:'&rgb_ug RGB_EFR',label:'Previous effect'},
+    {v:'&rgb_ug RGB_BRI',label:'Brightness up'},{v:'&rgb_ug RGB_BRD',label:'Brightness down'},
+    {v:'&rgb_ug RGB_HUI',label:'Hue up'},{v:'&rgb_ug RGB_HUD',label:'Hue down'},
+    {v:'&rgb_ug RGB_SAI',label:'Saturation up'},{v:'&rgb_ug RGB_SAD',label:'Saturation down'}]},
+  {id:'extpwr',group:'Bluetooth & system', label:'External power (LEDs)', tmpl:'{opt}', needs:['opt'], optLabel:'Action', help:'Cut/restore power to LEDs & peripherals to save battery.', options:[
+    {v:'&ext_power EP_TOG',label:'Toggle'},{v:'&ext_power EP_ON',label:'On'},{v:'&ext_power EP_OFF',label:'Off'}]},
+  {id:'boot', group:'Bluetooth & system', label:'Bootloader', tmpl:'&bootloader', needs:[], help:'Reboot into USB flashing mode (to load new firmware).'},
+  {id:'reset',group:'Bluetooth & system', label:'Reset',      tmpl:'&sys_reset', needs:[], help:'Reboot the keyboard.'},
+
+  {id:'raw',  group:'Other', label:'Other / type it…', tmpl:'{raw}', needs:['raw'], help:'Type any ZMK binding by hand (for anything not covered above).'},
+];
+var KE_STATE = {behavior:'kp', kc:'A', mod:'LSHFT', layer:'0', raw:'', opt:''};
+
+function guessBehavior(b){
+  b=(b||'').trim(); let m;
+  if((m=b.match(/^&kp\s+(C_\w+)$/)))      return {id:'media', fields:{opt:b}};
+  if(/^&mkp\b/.test(b))                   return {id:'mkp', fields:{opt:b}};
+  if(/^&mmv\b/.test(b))                   return {id:'mmv', fields:{opt:b}};
+  if(/^&msc\b/.test(b))                   return {id:'msc', fields:{opt:b}};
+  if(/^&bt\b/.test(b))                    return {id:'bt', fields:{opt:b}};
+  if(/^&out\b/.test(b))                   return {id:'out', fields:{opt:b}};
+  if(/^&rgb_ug\b/.test(b))                return {id:'rgb', fields:{opt:b}};
+  if(/^&ext_power\b/.test(b))             return {id:'extpwr', fields:{opt:b}};
+  if(b==='&bootloader')                   return {id:'boot', fields:{}};
+  if(b==='&sys_reset'||b==='&reset')      return {id:'reset', fields:{}};
+  if((m=b.match(/^&kp\s+(.+)$/)))         return {id:'kp', fields:{kc:m[1].trim()}};
+  if((m=b.match(/^&mt\s+(\S+)\s+(.+)$/))) return {id:'mt', fields:{mod:m[1], kc:m[2].trim()}};
+  if((m=b.match(/^&lt\s+(\d+)\s+(.+)$/))) return {id:'lt', fields:{layer:m[1], kc:m[2].trim()}};
+  if((m=b.match(/^&mo\s+(\d+)$/)))        return {id:'mo', fields:{layer:m[1]}};
+  if((m=b.match(/^&to\s+(\d+)$/)))        return {id:'to', fields:{layer:m[1]}};
+  if((m=b.match(/^&tog\s+(\d+)$/)))       return {id:'tog',fields:{layer:m[1]}};
+  if((m=b.match(/^&sl\s+(\d+)$/)))        return {id:'sl', fields:{layer:m[1]}};
+  if((m=b.match(/^&sk\s+(.+)$/)))         return {id:'sk', fields:{mod:m[1].trim()}};
+  if(b==='&trans') return {id:'trans', fields:{}};
+  if(b==='&none')  return {id:'none',  fields:{}};
+  if((m=b.match(/^&(\w+)$/)) && typeof CUSTOM_BEHAVIORS!=='undefined' && CUSTOM_BEHAVIORS.has(m[1]))
+    return {id:'custom:'+m[1], fields:{}};
+  return {id:'raw', fields:{raw:b}};
+}
+
+// When PICK_CB is set, the key-editor modal acts as a generic "choose a binding"
+// picker: Apply calls PICK_CB(binding) instead of editing a layer key.
+var PICK_CB = null;
+function openBindingPicker(cur, title, cb){
+  PICK_CB = cb; EDIT_CUR = null;
+  document.getElementById('ke-title').textContent = title || 'Choose a binding';
+  const g = guessBehavior(cur || '&kp A');
+  KE_STATE = {behavior:g.id, kc:g.fields.kc||'A', mod:g.fields.mod||'LSHFT', layer:g.fields.layer||'0', raw:g.fields.raw||(cur||''), opt:g.fields.opt||''};
+  renderKeyEditorBody();
+  document.getElementById('kemodal').classList.add('on');
+}
+
+function openKeyEditor(li, ki){
+  PICK_CB = null;
+  EDIT_CUR = {li, ki};
+  const tok = EDIT_MODEL.layers[li] && EDIT_MODEL.layers[li].tokens[ki];
+  const cur = (tok && tok.text) || '&trans';
+  document.getElementById('ke-title').textContent =
+    'Edit key - ' + EDIT_MODEL.layers[li].displayName + ' · position ' + ki;
+  const g = guessBehavior(cur);
+  KE_STATE = {behavior:g.id, kc:(g.fields.kc)||'A', mod:(g.fields.mod)||'LSHFT',
+              layer:(g.fields.layer)||'0', raw:(g.fields.raw)||cur, opt:(g.fields.opt)||''};
+  renderKeyEditorBody();
+  document.getElementById('kemodal').classList.add('on');
+}
+function closeKeyEditor(){ document.getElementById('kemodal').classList.remove('on'); EDIT_CUR=null; PICK_CB=null; }
+
+// Behaviour definitions available in the key picker = the built-ins PLUS any
+// custom 0-cell behaviours (mod-morph / tap-dance) defined in this keymap, which
+// become selectable as `&name`. (Custom hold-taps take params - assign via "Other".)
+function allBehaviorDefs(){
+  const customs = [];
+  if(typeof CUSTOM_BEHAVIORS !== 'undefined') CUSTOM_BEHAVIORS.forEach((v,k)=>{
+    if(v.type==='mod-morph' || v.type==='tap-dance')
+      customs.push({id:'custom:'+k, group:'Custom', label:`${k} (${v.type})`, tmpl:'&'+k, needs:[],
+                    help:'Custom '+v.type+' defined in this keymap - '+explain('&'+k)});
+  });
+  const raw = BEHAVIORS.find(b=>b.id==='raw');   // keep "Other" at the very end
+  return BEHAVIORS.filter(b=>b.id!=='raw').concat(customs, raw?[raw]:[]);
+}
+function getBehaviorDef(id){ return allBehaviorDefs().find(b=>b.id===id) || BEHAVIORS[0]; }
+function selectBehavior(id){ KE_STATE.behavior=id; KE_STATE.opt=''; renderKeyEditorBody(); }
+
+function renderKeyEditorBody(){
+  const beh = getBehaviorDef(KE_STATE.behavior);
+  const groups=[]; allBehaviorDefs().forEach(d=>{ const g=d.group||'Other'; let e=groups.find(x=>x.g===g); if(!e){e={g,items:[]};groups.push(e);} e.items.push(d); });
+  let h = '<label>Behaviour</label><select id="ke-beh" onchange="selectBehavior(this.value)">';
+  h += groups.map(gr=>'<optgroup label="'+esc(gr.g)+'">'+gr.items.map(b=>`<option value="${b.id}"${b.id===KE_STATE.behavior?' selected':''}>${esc(b.label)}</option>`).join('')+'</optgroup>').join('');
+  h += '</select>';
+  if(beh.help) h += '<div class="gh-hint" style="margin-top:7px">'+esc(beh.help)+'</div>';
+  if(beh.needs.includes('opt')){
+    if(!KE_STATE.opt) KE_STATE.opt = beh.options[0].v;
+    const vals = beh.options.map(o=>o.v);
+    const list = vals.includes(KE_STATE.opt) ? beh.options : [{v:KE_STATE.opt,label:KE_STATE.opt}].concat(beh.options);
+    h += '<label>'+esc(beh.optLabel||'Option')+'</label><select onchange="KE_STATE.opt=this.value;updateKePreview()">';
+    h += list.map(o=>`<option value="${esc(o.v)}"${o.v===KE_STATE.opt?' selected':''}>${esc(o.label)}</option>`).join('');
+    h += '</select>';
+  }
+  if(beh.needs.includes('mod')){
+    h += '<label>Modifier</label><select id="ke-mod" onchange="KE_STATE.mod=this.value;updateKePreview()">';
+    h += KeyCatalog.MODIFIERS.map(m=>`<option value="${m.code}"${m.code===KE_STATE.mod?' selected':''}>${esc(m.label)} (${m.code})</option>`).join('');
+    h += '</select>';
+  }
+  if(beh.needs.includes('layer')){
+    const names = LAYER_NAMES.length?LAYER_NAMES:['0'];
+    h += '<label>Layer</label><select id="ke-layer" onchange="KE_STATE.layer=this.value;updateKePreview()">';
+    h += names.map((nm,i)=>`<option value="${i}"${String(i)===String(KE_STATE.layer)?' selected':''}>${i} · ${esc(nm||('Layer '+i))}</option>`).join('');
+    h += '</select>';
+  }
+  if(beh.needs.includes('kc')){
+    if(!KE_STATE.kcCat){ const cur = KeyCatalog.byCode.get(KE_STATE.kc); KE_STATE.kcCat = cur ? cur.cat : 'All'; }
+    h += `<label>${beh.id==='kp'?'Key':'Tap key'}</label>`;
+    h += '<div class="kc-pick">';
+    h += '<select id="ke-kc-cat" title="Key group" onchange="KE_STATE.kcCat=this.value;renderKcList(document.getElementById(\'ke-kc-search\').value)">';
+    h += '<option value="All"'+(KE_STATE.kcCat==='All'?' selected':'')+'>All groups</option>';
+    h += KeyCatalog.CATS.map(c=>`<option value="${esc(c)}"${KE_STATE.kcCat===c?' selected':''}>${esc(c)}</option>`).join('');
+    h += '</select>';
+    h += '<input class="kc-search" id="ke-kc-search" placeholder="Search all keys… (e.g. esc, ; , vol)" autocomplete="off" oninput="renderKcList(this.value)">';
+    h += '</div>';
+    h += '<div class="kc-list" id="ke-kc-list"></div>';
+    h += '<div class="gh-hint" style="margin-top:7px">Pick a group to browse it, or search to look across all groups. For <b>mouse</b>, <b>Bluetooth</b>, <b>RGB</b> or <b>power</b> keys, change the <b>Behaviour</b> dropdown above.</div>';
+  }
+  if(beh.needs.includes('raw')){
+    h += '<label>Raw binding</label><input class="kc-search" id="ke-raw" placeholder="&kp A" value="'+esc(KE_STATE.raw)+'" oninput="KE_STATE.raw=this.value;updateKePreview()">';
+  }
+  document.getElementById('ke-body').innerHTML = h;
+  if(beh.needs.includes('kc')) renderKcList('');
+  updateKePreview();
+}
+
+function renderKcList(q){
+  const list = document.getElementById('ke-kc-list'); if(!list) return;
+  // Two ways to find a key: pick a group (browse just those), or type a search (looks
+  // across ALL groups, ignoring the group filter so you never hit a dead end).
+  let items;
+  if(q && q.trim()){
+    items = KeyCatalog.search(q, 60);
+  } else {
+    const cat = KE_STATE.kcCat || 'All';
+    items = cat === 'All' ? KeyCatalog.KEYCODES.slice() : KeyCatalog.KEYCODES.filter(k => k.cat === cat);
+  }
+  let h='', lastCat=null;
+  for(const k of items){
+    if(k.cat!==lastCat){ h+=`<div class="kc-cat">${esc(k.cat)}</div>`; lastCat=k.cat; }
+    h += `<div class="kc-item${k.code===KE_STATE.kc?' sel':''}" onclick="KE_STATE.kc='${k.code}';renderKcList(document.getElementById('ke-kc-search').value)">`
+       + `<span>${esc(k.label)}</span><span class="code">${esc(k.code)}</span></div>`;
+  }
+  list.innerHTML = h || '<div class="kc-item">No matches</div>';
+  updateKePreview();
+}
+
+function buildBinding(){
+  const beh = getBehaviorDef(KE_STATE.behavior);
+  return beh.tmpl.replace('{kc}',KE_STATE.kc).replace('{mod}',KE_STATE.mod)
+           .replace('{layer}',KE_STATE.layer).replace('{raw}',KE_STATE.raw).replace('{opt}',KE_STATE.opt||'').trim();
+}
+function updateKePreview(){ const p=document.getElementById('ke-preview'); if(p) p.textContent = buildBinding(); }
+
+function applyKeyEditor(){
+  const binding = buildBinding();
+  if(!binding || binding[0] !== '&'){ alert("That binding doesn't look valid - it must start with &."); return; }
+  if(PICK_CB){ const fn=PICK_CB; PICK_CB=null; closeKeyEditor(); fn(binding); return; }
+  if(!EDIT_CUR) return;
+  const {li, ki} = EDIT_CUR;
+  let newText;
+  try { newText = KeymapEngine.setBinding(EDIT_MODEL, li, ki, binding); }
+  catch(e){ alert('Edit failed: '+e.message); return; }
+  const v = KeymapEngine.validateSetBinding(EDIT_MODEL, newText, li, ki, binding);
+  if(!v.ok){ alert('Edit rejected (would corrupt the file):\n'+v.errors.join('\n')); return; }
+  document.getElementById('inp').value = newText;
+  if(EDIT_HISTORY) EDIT_HISTORY.push(newText);
+  closeKeyEditor();
+  render();   // re-parse + re-render + rebuild model; edit mode stays on
+}
+
+function editUndo(){ if(EDIT_HISTORY && EDIT_HISTORY.canUndo()){ document.getElementById('inp').value = EDIT_HISTORY.undo(); render(); } }
+function editRedo(){ if(EDIT_HISTORY && EDIT_HISTORY.canRedo()){ document.getElementById('inp').value = EDIT_HISTORY.redo(); render(); } }
+function downloadEditedKeymap(){
+  dlBlob(new Blob([document.getElementById('inp').value], {type:'text/plain;charset=utf-8'}), 'keymap.keymap');
+}
+
+// ── New-behaviour editor (define a custom mod-morph / hold-tap / tap-dance) ──
+const BE_MODS = ['LSFT','RSFT','LCTL','RCTL','LALT','RALT','LGUI','RGUI'];
+var BE_STATE = null;
+
+function openBehaviorEditor(){
+  if(!EDIT_MODEL){ alert('Load and render a keymap first.'); return; }
+  BE_STATE = { type:'mod-morph', name:'',
+    mDefault:'&kp DOT', mShifted:'&kp COMMA',
+    mods:{LSFT:true,RSFT:true,LCTL:false,RCTL:false,LALT:false,RALT:false,LGUI:false,RGUI:false},
+    htHold:'&kp LSHFT', htTap:'&kp A', flavor:'tap-preferred', ttm:200,
+    td1:'&kp A', td2:'&kp B' };
+  renderBehaviorEditorBody();
+  document.getElementById('bemodal').classList.add('on');
+}
+function closeBehaviorEditor(){ document.getElementById('bemodal').classList.remove('on'); BE_STATE=null; }
+
+function renderBehaviorEditorBody(){
+  const s = BE_STATE; let h='';
+  h += '<label>Type</label><select onchange="BE_STATE.type=this.value;renderBehaviorEditorBody()">';
+  [['mod-morph','Mod-morph - different output when a modifier is held'],
+   ['hold-tap','Hold-tap - one thing held, another tapped'],
+   ['tap-dance','Tap-dance - 1×, 2× taps']].forEach(([v,l])=>
+    h+=`<option value="${v}"${s.type===v?' selected':''}>${esc(l)}</option>`);
+  h += '</select>';
+  h += '<label>Name</label><input class="kc-search" placeholder="e.g. comma_dot" value="'+esc(s.name)+'" oninput="BE_STATE.name=this.value;updateBePreview()">';
+  if(s.type==='mod-morph'){
+    h += '<div class="f-row"><div><label>Default</label><input class="kc-search" value="'+esc(s.mDefault)+'" oninput="BE_STATE.mDefault=this.value;updateBePreview()"></div>'
+       + '<div><label>When modifier held</label><input class="kc-search" value="'+esc(s.mShifted)+'" oninput="BE_STATE.mShifted=this.value;updateBePreview()"></div></div>';
+    h += '<label>Trigger modifiers</label><div class="f-row" style="gap:6px">'
+       + BE_MODS.map(m=>`<label style="flex:0 0 auto;font-size:12px;text-transform:none;letter-spacing:0;color:#333;font-weight:500"><input type="checkbox" ${s.mods[m]?'checked':''} onchange="BE_STATE.mods['${m}']=this.checked;updateBePreview()"> ${m}</label>`).join('')
+       + '</div><div class="gh-hint" style="margin-top:6px">Tip: with these masked (the default), the held modifier isn’t sent - so Shift+a comma key gives a clean “.” not “&gt;”.</div>';
+  } else if(s.type==='hold-tap'){
+    h += '<div class="f-row"><div><label>Hold</label><input class="kc-search" value="'+esc(s.htHold)+'" oninput="BE_STATE.htHold=this.value;updateBePreview()"></div>'
+       + '<div><label>Tap</label><input class="kc-search" value="'+esc(s.htTap)+'" oninput="BE_STATE.htTap=this.value;updateBePreview()"></div></div>';
+    h += '<div class="f-row"><div><label>Flavor</label><select onchange="BE_STATE.flavor=this.value;updateBePreview()">'
+       + ['hold-preferred','tap-preferred','balanced','tap-unless-interrupted'].map(f=>`<option${s.flavor===f?' selected':''}>${f}</option>`).join('')
+       + '</select></div><div><label>Tapping term (ms)</label><input class="kc-search" type="number" value="'+s.ttm+'" oninput="BE_STATE.ttm=this.value;updateBePreview()"></div></div>';
+    h += '<div class="gh-hint" style="margin-top:8px">Assign it to a key with two params via the “Other / type it…” option, e.g. <code>&amp;'+(s.name||'name')+' LSHFT A</code>.</div>';
+  } else {
+    h += '<div class="f-row"><div><label>1 tap</label><input class="kc-search" value="'+esc(s.td1)+'" oninput="BE_STATE.td1=this.value;updateBePreview()"></div>'
+       + '<div><label>2 taps</label><input class="kc-search" value="'+esc(s.td2)+'" oninput="BE_STATE.td2=this.value;updateBePreview()"></div></div>';
+  }
+  document.getElementById('be-body').innerHTML = h;
+  updateBePreview();
+}
+
+function beSpec(){
+  const s = BE_STATE;
+  if(s.type==='mod-morph') return {name:s.name.trim(), type:'mod-morph',
+    bindings:[s.mDefault.trim(), s.mShifted.trim()], mods: BE_MODS.filter(m=>s.mods[m]).map(m=>'MOD_'+m)};
+  if(s.type==='hold-tap') return {name:s.name.trim(), type:'hold-tap',
+    bindings:[s.htHold.trim(), s.htTap.trim()], flavor:s.flavor, tappingTermMs:parseInt(s.ttm,10)||200};
+  return {name:s.name.trim(), type:'tap-dance', bindings:[s.td1.trim(), s.td2.trim()], tappingTermMs:200};
+}
+function updateBePreview(){
+  const p=document.getElementById('be-preview'); if(!p) return;
+  const spec=beSpec();
+  if(!spec.name){ p.textContent='(name required)'; return; }
+  if(spec.type==='mod-morph' && !spec.mods.length){ p.textContent='(pick a modifier)'; return; }
+  p.textContent = 'creates &'+spec.name;
+}
+function applyBehaviorEditor(){
+  if(!BE_STATE || !EDIT_MODEL) return;
+  const spec = beSpec();
+  const nameErr = KeymapEngine.behaviorNameError(EDIT_MODEL, spec.name);
+  if(nameErr){ alert(nameErr); return; }
+  if(spec.type==='mod-morph' && !spec.mods.length){ alert('Pick at least one trigger modifier.'); return; }
+  if(spec.bindings.some(b=>!b || b[0]!=='&')){ alert('Each binding must start with & (e.g. &kp DOT).'); return; }
+  let newText;
+  try { newText = KeymapEngine.addBehavior(EDIT_MODEL, spec); }
+  catch(e){ alert('Could not add behaviour: '+e.message); return; }
+  document.getElementById('inp').value = newText;
+  if(EDIT_HISTORY) EDIT_HISTORY.push(newText);
+  closeBehaviorEditor();
+  render();   // re-parses behaviors{} → the new behaviour becomes selectable + renders
+}
+
+// ── Behaviour glossary (plain-English reference for new users) ──
+const GLOSSARY = [
+  {term:'Key press (&kp)', what:'Types a single key when pressed - the normal thing a key does.', eg:'&kp A'},
+  {term:'Mod-tap (&mt)', what:'Hold for a modifier (Shift/Ctrl/Alt/Cmd), tap for a normal key. The basis of “home-row mods”.', eg:'&mt LSHFT F → hold = Shift, tap = F'},
+  {term:'Layer-tap (&lt)', what:'Hold to temporarily switch to another layer, tap for a normal key.', eg:'&lt 2 SPACE → hold = layer 2, tap = Space'},
+  {term:'Momentary layer (&mo)', what:'Activates a layer only while held - like Shift, but for a whole layer.', eg:'&mo 1'},
+  {term:'Switch to layer (&to)', what:'Switches to a layer and stays there until something switches back.', eg:'&to 0'},
+  {term:'Toggle layer (&tog)', what:'Turns a layer on or off - press once to enable, again to disable.', eg:'&tog 3'},
+  {term:'Sticky key (&sk)', what:'Applies a modifier to just the next key - tap Shift, then a letter, to capitalise. No holding.', eg:'&sk LSHFT'},
+  {term:'Sticky layer (&sl)', what:'Like a sticky key, but for a layer: the next key comes from that layer, then it reverts.', eg:'&sl 2'},
+  {term:'Mod-morph', what:'One key that outputs different things depending on whether a modifier is held - e.g. “.” normally but “,” with Shift. (ZMK Studio can’t create these; this editor can.)', eg:'. by default · , with Shift'},
+  {term:'Hold-tap', what:'The general form behind mod-tap/layer-tap: define your own “hold does X, tap does Y” with custom timing.', eg:'hold = Ctrl · tap = Esc'},
+  {term:'Tap-dance', what:'One key that does different things by tap count - 1 tap = X, 2 taps = Y.', eg:'1× = ( · 2× = {'},
+  {term:'Combo', what:'Press two or more keys at the same time to produce a different output.', eg:'J + K together → Esc'},
+  {term:'Transparent (&trans)', what:'“Falls through” to whatever this key does on the layer below - so a layer can override only some keys.', eg:'&trans'},
+  {term:'Disabled (&none)', what:'A dead key - does nothing.', eg:'&none'},
+];
+function openGlossary(){
+  document.getElementById('gloss-body').innerHTML = GLOSSARY.map(g=>
+    `<div class="gloss-item"><div class="gloss-term">${esc(g.term)}</div><div class="gloss-what">${esc(g.what)}</div><div class="gloss-eg">${esc(g.eg)}</div></div>`).join('');
+  document.getElementById('glossmodal').classList.add('on');
+}
+function closeGlossary(){ document.getElementById('glossmodal').classList.remove('on'); }
+
+// ── Drag-and-drop a .keymap file anywhere on the page ──
+(function(){
+  const ov = document.getElementById('drop-overlay');
+  if(!ov) return;
+  let depth = 0;
+  const hasFile = e => e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes('Files');
+  window.addEventListener('dragenter', e=>{ if(!hasFile(e)) return; e.preventDefault(); depth++; ov.classList.add('on'); });
+  window.addEventListener('dragover',  e=>{ if(hasFile(e)) e.preventDefault(); });
+  window.addEventListener('dragleave', ()=>{ depth=Math.max(0,depth-1); if(depth===0) ov.classList.remove('on'); });
+  window.addEventListener('drop', e=>{
+    if(!hasFile(e)) return; e.preventDefault(); depth=0; ov.classList.remove('on');
+    const f = e.dataTransfer.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = ()=>{
+      document.getElementById('inp').value = String(r.result || '');
+      LOADED_SRC=null; REPO_LAYOUTS=[]; REPO_LAYOUTS_KEY=null; ZMK_LAYOUTS=[]; EDIT_HISTORY=null;
+      render();
+      try{ setStatus('ok','✓ Loaded '+f.name); }catch(_){}
+    };
+    r.readAsText(f);
+  });
+})();
+
+// ── Combo builder (non-modal: keeps the board clickable so you pick keys) ──
+var COMBO_BUILD = null;
+function openComboEditor(){
+  if(!EDIT_MODEL){ alert('Render a keymap first.'); return; }
+  if(!EDIT_STRUCTURED){ alert('Structured editing isn’t available for this keymap (template-generated).'); return; }
+  COMBO_BUILD = { positions: [], binding: '&kp ESC' };
+  document.getElementById('cb-name').value='';
+  document.getElementById('cb-out-label').textContent = translate(COMBO_BUILD.binding).label.replace(/\n/g,' ');
+  document.getElementById('cb-timeout').value=50;
+  document.getElementById('cb-layers').value='';
+  document.getElementById('out').classList.add('combo-picking');
+  document.getElementById('combo-builder').classList.add('on');
+  refreshComboBuilder();
+}
+function cancelComboBuild(){
+  COMBO_BUILD = null;
+  document.getElementById('combo-builder').classList.remove('on');
+  document.getElementById('out').classList.remove('combo-picking');
+  document.querySelectorAll('.key.combo-picked').forEach(k=>k.classList.remove('combo-picked'));
+}
+function toggleComboKey(pos, el){
+  if(!COMBO_BUILD) return;
+  const i = COMBO_BUILD.positions.indexOf(pos);
+  if(i>=0) COMBO_BUILD.positions.splice(i,1); else COMBO_BUILD.positions.push(pos);
+  const on = COMBO_BUILD.positions.indexOf(pos)>=0;
+  document.querySelectorAll('.key[data-ki="'+pos+'"]').forEach(k=>k.classList.toggle('combo-picked', on));
+  refreshComboBuilder();
+}
+function refreshComboBuilder(){
+  const el=document.getElementById('cb-positions'); if(!el) return;
+  const ps = COMBO_BUILD ? COMBO_BUILD.positions.slice().sort((a,b)=>a-b) : [];
+  el.textContent = ps.length ? ('keys: '+ps.join(' + ')) : 'No keys selected - click keys on the board';
+}
+function pickComboOutput(){
+  if(!COMBO_BUILD) return;
+  openBindingPicker(COMBO_BUILD.binding, 'Combo output', function(b){
+    COMBO_BUILD.binding = b;
+    document.getElementById('cb-out-label').textContent = translate(b).label.replace(/\n/g,' ');
+  });
+}
+function commitComboBuild(){
+  if(!COMBO_BUILD || !EDIT_MODEL) return;
+  const positions = COMBO_BUILD.positions.slice().sort((a,b)=>a-b);
+  const name=(document.getElementById('cb-name').value||'').trim();
+  const binding=(COMBO_BUILD.binding||'').trim();
+  const timeoutMs=parseInt(document.getElementById('cb-timeout').value,10)||50;
+  const layStr=(document.getElementById('cb-layers').value||'').trim();
+  const ne=KeymapEngine.comboNameError(EDIT_MODEL,name); if(ne){ alert(ne); return; }
+  if(positions.length<2){ alert('Click at least two keys on the board to form the combo.'); return; }
+  if(!binding || binding[0]!=='&'){ alert('Output must be a binding starting with & (e.g. &kp ESC).'); return; }
+  const spec={ name, keyPositions:positions, binding, timeoutMs, layers: layStr?layStr.split(/\s+/).map(Number):null };
+  let t; try{ t=KeymapEngine.addCombo(EDIT_MODEL, spec); }catch(e){ alert(e.message); return; }
+  document.getElementById('inp').value=t; if(EDIT_HISTORY) EDIT_HISTORY.push(t);
+  cancelComboBuild(); render();
+}
+function removeComboUI(ci){
+  if(!EDIT_MODEL) return;
+  const cs=KeymapEngine.parseCombos(EDIT_MODEL).combos[ci]; if(!cs) return;
+  if(!confirm('Remove combo "'+cs.name+'"?')) return;
+  let t; try{ t=KeymapEngine.removeCombo(EDIT_MODEL, ci); }catch(e){ alert(e.message); return; }
+  document.getElementById('inp').value=t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+
+// ── New keymap from scratch ──
+const KEYMAP_PRESETS = [
+  {id:'corne42', label:'Split 3×6 + 3 thumbs - Corne (42 keys)', layout:LAYOUT_42, total:42},
+  {id:'corne36', label:'Split 3×5 + 3 thumbs (36 keys)',        layout:LAYOUT_36, total:36},
+  {id:'sweep34', label:'Split 3×5 + 2 thumbs - Sweep / Ferris (34 keys)', layout:LAYOUT_34, total:34},
+];
+function fillQwerty(layout, total){
+  const a = Array(total).fill('&trans');
+  const L=[['Q','W','E','R','T'],['A','S','D','F','G'],['Z','X','C','V','B']];
+  const R=[['Y','U','I','O','P'],['H','J','K','L','SEMI'],['N','M','COMMA','DOT','FSLH']];
+  layout.leftRows.forEach((row,ri)=>row.forEach((idx,ci)=>{ if(L[ri]&&L[ri][ci]!=null&&idx<total) a[idx]='&kp '+L[ri][ci]; }));
+  layout.rightRows.forEach((row,ri)=>row.forEach((idx,ci)=>{ if(R[ri]&&R[ri][ci]!=null&&idx<total) a[idx]='&kp '+R[ri][ci]; }));
+  const ldef=['&mo 1','&kp SPACE','&kp LCTRL','&kp TAB'], rdef=['&kp BSPC','&mo 2','&kp RET','&kp DEL'];
+  (layout.leftThumb||[]).forEach((idx,i)=>{ if(ldef[i]&&idx<total) a[idx]=ldef[i]; });
+  (layout.rightThumb||[]).forEach((idx,i)=>{ if(rdef[i]&&idx<total) a[idx]=rdef[i]; });
+  return a;
+}
+function buildSkeleton(p){
+  const fmt = arr => { let s=''; for(let i=0;i<arr.length;i+=12) s+='\n                '+arr.slice(i,i+12).join(' '); return s+'\n            '; };
+  const base = fillQwerty(p.layout, p.total), blank = Array(p.total).fill('&trans');
+  return '/*\n * Keymap created with customkeymap - base: '+p.label+'\n */\n'
+    + '#include <behaviors.dtsi>\n#include <dt-bindings/zmk/keys.h>\n#include <dt-bindings/zmk/bt.h>\n\n'
+    + '/ {\n    keymap {\n        compatible = "zmk,keymap";\n\n'
+    + '        default_layer {\n            bindings = <'+fmt(base)+'>;\n        };\n\n'
+    + '        lower_layer {\n            bindings = <'+fmt(blank)+'>;\n        };\n\n'
+    + '        raise_layer {\n            bindings = <'+fmt(blank)+'>;\n        };\n    };\n};\n';
+}
+function openNewKeymap(){
+  document.getElementById('nm-preset').innerHTML = KEYMAP_PRESETS.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join('');
+  document.getElementById('nmodal').classList.add('on');
+}
+function closeNewKeymap(){ document.getElementById('nmodal').classList.remove('on'); }
+function createNewKeymap(){
+  const p = KEYMAP_PRESETS.find(x=>x.id===document.getElementById('nm-preset').value);
+  if(!p) return;
+  document.getElementById('inp').value = buildSkeleton(p);
+  LOADED_SRC=null; REPO_LAYOUTS=[]; REPO_LAYOUTS_KEY=null; ZMK_LAYOUTS=[]; EDIT_HISTORY=null;
+  closeNewKeymap(); render();
+}
+
+// Close modals on backdrop click or Escape.
+(function(){
+  const closers = {kemodal:closeKeyEditor, bemodal:closeBehaviorEditor, nmodal:closeNewKeymap, glossmodal:closeGlossary};
+  Object.keys(closers).forEach(id=>{ const bg=document.getElementById(id);
+    if(bg) bg.addEventListener('click', e=>{ if(e.target===bg) closers[id](); }); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeKeyEditor(); closeBehaviorEditor(); closeNewKeymap(); closeGlossary(); cancelComboBuild(); } });
+})();
+
+// Prefill the GitHub field with the last-used URL (or the Corne default).
+(function(){
+  const el = document.getElementById('gh-input');
+  if(el){ let v = GH_DEFAULT; try { v = localStorage.getItem(GH_STORE_KEY) || GH_DEFAULT; } catch(e){} el.value = v; }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Always revalidate the app shell + scripts so a new deploy is picked up
+# immediately (no stale JS/HTML in users' browsers). Etag revalidation means
+# unchanged files still return a cheap 304. The GitHub proxy (/api/gh/*) sets its
+# own caching and is intentionally not covered here.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/editor-engine.js
+  Cache-Control: no-cache
+/keycodes.js
+  Cache-Control: no-cache
