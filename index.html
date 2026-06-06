@@ -957,10 +957,15 @@ function parseMacros(text){
       const cellsM = body.match(/#binding-cells\s*=\s*<\s*(\d+)\s*>/);
       const params = cellsM ? parseInt(cellsM[1],10) : 0;
       const bndsM = body.match(/bindings\s*=\s*([^;]+);/);
-      const keys = [];
-      if(bndsM){ let km; const kpRe=/&kp\s+([A-Za-z0-9_()]+)/g;
-        while((km=kpRe.exec(bndsM[1]))!==null) if(km[1]!=='MACRO_PLACEHOLDER') keys.push(km[1]); }
-      result.set(name, { params, keys });
+      let seq = [];
+      if(bndsM){
+        // Split the bindings value into individual & invocations; drop the macro
+        // control behaviours (&macro_tap, &macro_press, &macro_param_*, ...) which
+        // aren't output, leaving the actual actions the macro performs.
+        seq = bndsM[1].replace(/[<>,]/g,' ').split(/(?=&)/).map(s=>s.trim())
+                .filter(s => s && !/^&macro_/.test(s));
+      }
+      result.set(name, { params, seq });
     }
   }
   return result;
@@ -1136,9 +1141,8 @@ function explain(b){
       return 'Tap-dance - '+cb.bindings.map((x,i)=>`${i+1}×: ${explain(x)}`).join(' · ');
     if(typeof CUSTOM_MACROS!=='undefined' && CUSTOM_MACROS.has(m[1])){
       const mac=CUSTOM_MACROS.get(m[1]);
-      const sends = mac.keys.length ? mac.keys.map(k=>kl(k)).join(' ') : 'a custom sequence';
       const pnote = mac.params>0 ? ` (takes ${mac.params} parameter${mac.params>1?'s':''})` : '';
-      return `Macro${pnote}: sends ${sends}`;
+      return `Macro${pnote}: ${macroSends(mac)}`;
     }
   }
   return b;  // fallback: show the raw binding
@@ -1697,13 +1701,26 @@ function renderEncoders(list){
 
 // List every macro defined in the keymap (name -> what it sends), so they're visible
 // at a glance even when only triggered via combos or not bound anywhere.
+// Readable summary of what a macro does: each action binding run through the same
+// labeller as the keys, joined in order (the parameter slot shows as <param>).
+function macroSends(mac){
+  if(!mac.seq || !mac.seq.length) return mac.params>0 ? 'its parameter' : 'a sequence';
+  const parts = mac.seq.slice(0,8).map(bd=>{
+    if(/MACRO_PLACEHOLDER/.test(bd)) return '‹param›';
+    const l = translate(bd).label.replace(/\n/g,' ').trim();
+    return l || bd.replace(/^&/,'');
+  });
+  if(mac.seq.length>8) parts.push('…');
+  return parts.join(' · ');
+}
+
 function renderMacros(){
   if(typeof CUSTOM_MACROS==='undefined' || !CUSTOM_MACROS.size) return '';
   let h = '<div class="card combos-section">';
   h += '<div class="combos-title">Macros</div>';
   h += '<div class="combos-grid">';
   CUSTOM_MACROS.forEach((mac,name)=>{
-    const sends = mac.keys.length ? mac.keys.map(k=>kl(k)).join(' ') : 'a custom sequence';
+    const sends = macroSends(mac);
     const pnote = mac.params>0 ? ` (${mac.params}-param)` : '';
     h += `<div class="combo" title="Macro defined in this keymap">`;
     h += `<span class="combo-keys">${esc(name.replace(/_/g,' '))}${esc(pnote)}</span>`;
