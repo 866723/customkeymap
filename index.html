@@ -1695,6 +1695,26 @@ function renderEncoders(list){
   return h;
 }
 
+// List every macro defined in the keymap (name -> what it sends), so they're visible
+// at a glance even when only triggered via combos or not bound anywhere.
+function renderMacros(){
+  if(typeof CUSTOM_MACROS==='undefined' || !CUSTOM_MACROS.size) return '';
+  let h = '<div class="card combos-section">';
+  h += '<div class="combos-title">Macros</div>';
+  h += '<div class="combos-grid">';
+  CUSTOM_MACROS.forEach((mac,name)=>{
+    const sends = mac.keys.length ? mac.keys.map(k=>kl(k)).join(' ') : 'a custom sequence';
+    const pnote = mac.params>0 ? ` (${mac.params}-param)` : '';
+    h += `<div class="combo" title="Macro defined in this keymap">`;
+    h += `<span class="combo-keys">${esc(name.replace(/_/g,' '))}${esc(pnote)}</span>`;
+    h += `<span class="combo-arr">→</span>`;
+    h += `<span class="combo-out">${esc(sends)}</span>`;
+    h += `</div>`;
+  });
+  h += '</div></div>';
+  return h;
+}
+
 // ── C preprocessor (enough for ZMK keymaps incl. miryoku X-macros) ───────────
 // Namespaced in an IIFE so its helpers don't clash with the parser's.
 const cppPreprocess = (function(){
@@ -1883,6 +1903,7 @@ async function render(){
     h += renderCombos(combos, defaultBindings);
     h += renderConditionalLayers(parseConditionalLayers(text));
     h += renderEncoders(parseEncoders(text));
+    h += renderMacros();
     out.innerHTML=h; out.style.display='block';
     updateLegend(out);
     afterRender();
