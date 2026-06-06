@@ -446,10 +446,71 @@
     return null;
   }
 
+  function parseConditionalLayers(model) {
+    const text = model.text;
+    const blk = findBlock(text, /\bconditional_layers\s*\{/g);
+    const out = { block: blk ? { contentStart: blk.contentStart, contentEnd: blk.contentEnd } : null, conds: [] };
+    if (!blk) return out;
+    const re = /(\w+)\s*\{/g; re.lastIndex = blk.contentStart;
+    let m;
+    while ((m = re.exec(text)) && m.index < blk.contentEnd) {
+      const name = m[1];
+      const braceAbs = m.index + m[0].length - 1;
+      const close = matchBrace(text, braceAbs + 1);
+      if (close === -1 || close > blk.contentEnd) break;
+      const body = text.slice(braceAbs + 1, close);
+      const ifs = (body.match(/if-layers\s*=\s*<([^>]*)>/) || [])[1];
+      const then = (body.match(/then-layer\s*=\s*<\s*(\d+)\s*>/) || [])[1];
+      const semi = text.slice(close + 1).match(/^\s*;/);
+      if (ifs != null && then != null) out.conds.push({
+        name, nodeStart: m.index, nodeEnd: close + 1 + (semi ? semi[0].length : 0),
+        ifLayers: ifs.trim().split(/\s+/).map(Number).filter(n => !isNaN(n)),
+        thenLayer: parseInt(then, 10),
+      });
+      re.lastIndex = close + 1;
+    }
+    return out;
+  }
+
+  function conditionalNode(spec) {
+    const I = '        ', I2 = '            ';
+    const body = `${I2}if-layers = <${spec.ifLayers.join(' ')}>;\n`
+               + `${I2}then-layer = <${spec.thenLayer}>;\n`;
+    return `${I}${spec.name} {\n${body}${I}};`;
+  }
+
+  // Insert a conditional layer, round-trip-safe: into conditional_layers{} if present,
+  // else create that node in root.
+  function addConditionalLayer(model, spec) {
+    const text = model.text, node = conditionalNode(spec);
+    const c = findBlock(text, /\bconditional_layers\s*\{/g);
+    if (c) return insertBeforeClose(text, c.contentEnd, node);
+    const root = findBlock(text, /\/\s*\{/g);
+    if (!root) throw new Error('no root devicetree node ("/ {") found');
+    const block = `\n    conditional_layers {\n        compatible = "zmk,conditional-layers";\n${node}\n    };\n`;
+    return text.slice(0, root.contentStart) + block + text.slice(root.contentStart);
+  }
+
+  function removeConditionalLayer(model, idx) {
+    const c = parseConditionalLayers(model).conds[idx];
+    if (!c) throw new Error('conditional layer not found');
+    let s = c.nodeStart;
+    while (s > 0 && (model.text[s - 1] === ' ' || model.text[s - 1] === '\t')) s--;
+    if (model.text[s - 1] === '\n') s--;
+    return model.text.slice(0, s) + model.text.slice(c.nodeEnd);
+  }
+
+  function conditionalNameError(model, name) {
+    if (!/^[A-Za-z_]\w*$/.test(name)) return 'Use letters, numbers and underscores; don’t start with a number.';
+    if (parseConditionalLayers(model).conds.some(c => c.name === name)) return `A conditional layer named "${name}" already exists.`;
+    return null;
+  }
+
   const api = { parseKeymap, layerBindings, setBinding, validateSetBinding, History,
                 findBlock, behaviorNode, addBehavior, behaviorNameError, addLayer, renameLayer,
                 moveLayer, deleteLayer, countLayerRefs, applyLayerRemap,
                 parseCombos, comboNode, addCombo, removeCombo, comboNameError,
+                parseConditionalLayers, conditionalNode, addConditionalLayer, removeConditionalLayer, conditionalNameError,
                 _internal: { tokenizeBindings, matchBrace, findBindingsEnd, fmtName } };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api; // node

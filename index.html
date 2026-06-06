@@ -346,6 +346,7 @@ select:focus,.kc-search:focus{outline:none;border-color:var(--accent);box-shadow
     <button class="btn-s" id="eb-layer" onclick="addLayerUI()">＋ Layer</button>
     <button class="btn-s" id="eb-beh" onclick="openBehaviorEditor()">＋ Behaviour</button>
     <button class="btn-s" id="eb-combo" onclick="openComboEditor()">＋ Combo</button>
+    <button class="btn-s" id="eb-cond" onclick="addConditionalLayerUI()">＋ Cond. layer</button>
     <button class="btn-s" id="eb-ai" onclick="openAIEditor()">✨ AI edit</button>
     <button class="btn-s" id="eb-commit" onclick="openCommitModal()">⬆ Commit to GitHub</button>
     <button class="btn-p" id="eb-dl" onclick="downloadEditedKeymap()">Download .keymap</button>
@@ -1640,12 +1641,15 @@ function renderConditionalLayers(conds){
   let h = '<div class="card combos-section">';
   h += '<div class="combos-title">Conditional layers</div>';
   h += '<div class="combos-grid">';
-  conds.forEach(c=>{
+  conds.forEach((c,ci)=>{
     const ifStr = c.ifLayers.map(n=>layerName(n)).join(' + ');
+    const rm = (typeof EDIT_MODE!=='undefined' && EDIT_MODE && EDIT_STRUCTURED)
+      ? `<button class="combo-rm" data-cli="${ci}" title="Remove conditional layer">✕</button>` : '';
     h += `<div class="combo" title="Holding these layers together activates the target layer">`;
     h += `<span class="combo-keys">${esc(ifStr)}</span>`;
     h += `<span class="combo-arr">→</span>`;
     h += `<span class="combo-out">${esc(layerName(c.thenLayer))}</span>`;
+    h += rm;
     h += `</div>`;
   });
   h += '</div></div>';
@@ -2529,7 +2533,10 @@ document.addEventListener('click', function(e){
   const dl = e.target.closest('.lay-del');
   if(dl){ deleteLayerUI(parseInt(dl.getAttribute('data-dli'),10)); return; }
   const cr = e.target.closest('.combo-rm');
-  if(cr){ removeComboUI(parseInt(cr.getAttribute('data-ci'),10)); return; }
+  if(cr){
+    if(cr.hasAttribute('data-cli')){ removeConditionalLayerUI(parseInt(cr.getAttribute('data-cli'),10)); return; }
+    removeComboUI(parseInt(cr.getAttribute('data-ci'),10)); return;
+  }
   const k = e.target.closest('.key[data-ki]');
   if(!k) return;
   if(COMBO_BUILD){ toggleComboKey(parseInt(k.getAttribute('data-ki'),10), k); return; }
@@ -3276,6 +3283,33 @@ function removeComboUI(ci){
   const cs=KeymapEngine.parseCombos(EDIT_MODEL).combos[ci]; if(!cs) return;
   if(!confirm('Remove combo "'+cs.name+'"?')) return;
   let t; try{ t=KeymapEngine.removeCombo(EDIT_MODEL, ci); }catch(e){ alert(e.message); return; }
+  document.getElementById('inp').value=t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+
+// Conditional layers: hold a set of layers together to auto-activate another (tri-layer).
+function addConditionalLayerUI(){
+  if(!EDIT_MODEL){ alert('Render a keymap first.'); return; }
+  const n = LAYER_COUNT || KeymapEngine.parseKeymap(EDIT_MODEL.text).layers.length;
+  const ifRaw = prompt(`Which layers must be held together to trigger this?\nEnter 2 or more layer numbers, separated by spaces (0–${n-1}):`);
+  if(ifRaw==null) return;
+  const ifLayers = ifRaw.trim().split(/\s+/).map(Number).filter(x=>!isNaN(x));
+  if(ifLayers.length<2){ alert('Enter at least two layer numbers, e.g. "1 2".'); return; }
+  if(ifLayers.some(x=>x<0||x>=n)){ alert(`Layer numbers must be between 0 and ${n-1}.`); return; }
+  const thenRaw = prompt(`Which layer should activate when those are all held? (0–${n-1})`);
+  if(thenRaw==null) return;
+  const thenLayer = parseInt((thenRaw||'').trim(),10);
+  if(isNaN(thenLayer)||thenLayer<0||thenLayer>=n){ alert(`Target layer must be between 0 and ${n-1}.`); return; }
+  let base='cond_'+ifLayers.join('_')+'_'+thenLayer, name=base, i=2;
+  while(KeymapEngine.conditionalNameError(EDIT_MODEL, name)) name = base+'_'+(i++);
+  let t; try{ t=KeymapEngine.addConditionalLayer(EDIT_MODEL, {name, ifLayers, thenLayer}); }catch(e){ alert(e.message); return; }
+  document.getElementById('inp').value=t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
+}
+function removeConditionalLayerUI(idx){
+  if(!EDIT_MODEL) return;
+  const cs=KeymapEngine.parseConditionalLayers(EDIT_MODEL).conds[idx]; if(!cs) return;
+  const ifStr=cs.ifLayers.map(x=>layerName(x)).join(' + ');
+  if(!confirm(`Remove conditional layer (${ifStr} → ${layerName(cs.thenLayer)})?`)) return;
+  let t; try{ t=KeymapEngine.removeConditionalLayer(EDIT_MODEL, idx); }catch(e){ alert(e.message); return; }
   document.getElementById('inp').value=t; if(EDIT_HISTORY) EDIT_HISTORY.push(t); render();
 }
 
