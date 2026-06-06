@@ -715,6 +715,14 @@ function translate(b){
     }
   }
 
+  // Custom macro (zmk,behavior-macro), with or without parameters. Show the macro
+  // name; the tooltip lists what it sends.
+  if((m=b.match(/^&(\w+)(?:\s+.+)?$/)) && typeof CUSTOM_MACROS!=='undefined' && CUSTOM_MACROS.has(m[1])){
+    let lbl = m[1].replace(/_/g,' ');
+    if(lbl.length>12) lbl = lbl.slice(0,11)+'…';
+    return {label: lbl, type:'system'};
+  }
+
   return {label:b.replace(/^&/,'').substring(0,10),type:'std'};
 }
 
@@ -921,6 +929,42 @@ function getLayout(n){
 // Used so &dot_comma renders as "." with "," underneath, instead of truncated
 // "dot_c..." text.
 let CUSTOM_BEHAVIORS = new Map();
+let CUSTOM_MACROS = new Map();
+
+// Parse macros {} blocks: name -> { params, keys[] }. params is #binding-cells
+// (0 = plain macro, 1/2 = parameterized). keys[] is the &kp output sequence, used for
+// the tooltip; macro control behaviours (&macro_tap, &macro_press, ...) aren't output,
+// so they're left out.
+function parseMacros(text){
+  text = stripComments(text);
+  const result = new Map();
+  const startRe = /\bmacros\s*\{/g;
+  let startM;
+  while((startM = startRe.exec(text)) !== null){
+    let depth=1, i=startM.index+startM[0].length;
+    while(i<text.length && depth>0){ const c=text[i++]; if(c==='{')depth++; else if(c==='}')depth--; }
+    const block = text.slice(startM.index+startM[0].length, i-1);
+    const childRe = /(?:(\w+)\s*:\s*)?(\w+)\s*\{/g;
+    let cm;
+    while((cm = childRe.exec(block)) !== null){
+      const name = cm[1] || cm[2];
+      if(name==='compatible') continue;
+      let d=1, j=cm.index+cm[0].length;
+      while(j<block.length && d>0){ const c=block[j++]; if(c==='{')d++; else if(c==='}')d--; }
+      const body = block.slice(cm.index+cm[0].length, j-1);
+      const compatM = body.match(/compatible\s*=\s*"([^"]+)"/);
+      if(!compatM || !/^zmk,behavior-macro/.test(compatM[1])) continue;
+      const cellsM = body.match(/#binding-cells\s*=\s*<\s*(\d+)\s*>/);
+      const params = cellsM ? parseInt(cellsM[1],10) : 0;
+      const bndsM = body.match(/bindings\s*=\s*([^;]+);/);
+      const keys = [];
+      if(bndsM){ let km; const kpRe=/&kp\s+([A-Za-z0-9_()]+)/g;
+        while((km=kpRe.exec(bndsM[1]))!==null) if(km[1]!=='MACRO_PLACEHOLDER') keys.push(km[1]); }
+      result.set(name, { params, keys });
+    }
+  }
+  return result;
+}
 
 function parseBehaviors(text){
   text = stripComments(text);
@@ -1090,6 +1134,12 @@ function explain(b){
     }
     if(cb && cb.type==='tap-dance')
       return 'Tap-dance - '+cb.bindings.map((x,i)=>`${i+1}×: ${explain(x)}`).join(' · ');
+    if(typeof CUSTOM_MACROS!=='undefined' && CUSTOM_MACROS.has(m[1])){
+      const mac=CUSTOM_MACROS.get(m[1]);
+      const sends = mac.keys.length ? mac.keys.map(k=>kl(k)).join(' ') : 'a custom sequence';
+      const pnote = mac.params>0 ? ` (takes ${mac.params} parameter${mac.params>1?'s':''})` : '';
+      return `Macro${pnote}: sends ${sends}`;
+    }
   }
   return b;  // fallback: show the raw binding
 }
@@ -1691,6 +1741,7 @@ async function render(){
       catch(e){ console.warn('preprocess failed; using raw text', e); }
     }
     CUSTOM_BEHAVIORS = parseBehaviors(text);
+    CUSTOM_MACROS = parseMacros(text);
     const layers = parseLayers(text);
     LAYER_NAMES = layers.map(l=>l.name);   // layer index -> name, for &mo/&to/&lt labels
     PHYS_LAYOUTS = parsePhysicalLayouts(text);  // exact board geometry, if present
