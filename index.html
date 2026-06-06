@@ -1601,6 +1601,53 @@ function renderCombos(combos, defaultBindings){
   return h;
 }
 
+// Parse conditional_layers {} -> [{ifLayers:[...], thenLayer:n}]. These activate a
+// layer automatically when a set of other layers are all held (e.g. the classic
+// lower+raise -> adjust "tri-layer").
+function parseConditionalLayers(text){
+  text = stripComments(text);
+  const result = [];
+  const startRe = /\bconditional_layers\s*\{/g;
+  let startM;
+  while((startM = startRe.exec(text)) !== null){
+    let depth=1, i=startM.index+startM[0].length;
+    while(i<text.length && depth>0){ const c=text[i++]; if(c==='{')depth++; else if(c==='}')depth--; }
+    const block = text.slice(startM.index+startM[0].length, i-1);
+    const childRe = /(?:(\w+)\s*:\s*)?(\w+)\s*\{/g;
+    let cm;
+    while((cm = childRe.exec(block)) !== null){
+      const name = cm[1] || cm[2];
+      if(name==='compatible') continue;
+      let d=1, j=cm.index+cm[0].length;
+      while(j<block.length && d>0){ const c=block[j++]; if(c==='{')d++; else if(c==='}')d--; }
+      const body = block.slice(cm.index+cm[0].length, j-1);
+      const ifM = body.match(/if-layers\s*=\s*<([^>]*)>/);
+      const thenM = body.match(/then-layer\s*=\s*<\s*(\d+)\s*>/);
+      if(!ifM || !thenM) continue;
+      const ifLayers = ifM[1].trim().split(/\s+/).map(Number).filter(n=>!isNaN(n));
+      if(ifLayers.length) result.push({ ifLayers, thenLayer: parseInt(thenM[1],10) });
+    }
+  }
+  return result;
+}
+
+function renderConditionalLayers(conds){
+  if(!conds.length) return '';
+  let h = '<div class="card combos-section">';
+  h += '<div class="combos-title">Conditional layers</div>';
+  h += '<div class="combos-grid">';
+  conds.forEach(c=>{
+    const ifStr = c.ifLayers.map(n=>layerName(n)).join(' + ');
+    h += `<div class="combo" title="Holding these layers together activates the target layer">`;
+    h += `<span class="combo-keys">${esc(ifStr)}</span>`;
+    h += `<span class="combo-arr">→</span>`;
+    h += `<span class="combo-out">${esc(layerName(c.thenLayer))}</span>`;
+    h += `</div>`;
+  });
+  h += '</div></div>';
+  return h;
+}
+
 // ── C preprocessor (enough for ZMK keymaps incl. miryoku X-macros) ───────────
 // Namespaced in an IIFE so its helpers don't clash with the parser's.
 const cppPreprocess = (function(){
@@ -1787,6 +1834,7 @@ async function render(){
       layers.forEach((layer,i)=> h += layerCard(layer, i, true));
     }
     h += renderCombos(combos, defaultBindings);
+    h += renderConditionalLayers(parseConditionalLayers(text));
     out.innerHTML=h; out.style.display='block';
     updateLegend(out);
     afterRender();
