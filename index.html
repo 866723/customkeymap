@@ -519,10 +519,11 @@ select:focus,.kc-search:focus{outline:none;border-color:var(--accent);box-shadow
 </div>
 
 <!-- Drag-and-drop overlay (shown while a file is dragged over the page). -->
-<div id="drop-overlay"><div class="drop-card">Drop a <b>.keymap</b> file to load it</div></div>
+<div id="drop-overlay"><div class="drop-card">Drop a <b>.keymap</b> to load it — or an <b>info.json</b> to position the keys</div></div>
 
 <script src="editor-engine.js"></script>
 <script src="keycodes.js"></script>
+<script src="layout-json.js"></script>
 <script src="ai-editor.js"></script>
 <script>
 /* Cloudflare Web Analytics - cookieless, no personal data, no consent banner needed.
@@ -621,6 +622,10 @@ let REPO_LAYOUTS = [];
 let REPO_LAYOUTS_KEY = null;
 // Layouts fetched from ZMK core for the current board (tier B-full).
 let ZMK_LAYOUTS = [];
+// Geometry from a QMK/keymap-editor info.json the user drag-dropped onto the page
+// (local equivalent of the repo-scanned JSON). Lowest priority: only fills in when
+// no inline / repo / ZMK-core layout matches. Survives edits; cleared on new keymap.
+let LOCAL_LAYOUTS = [];
 function layerName(n){ const nm = LAYER_NAMES[+n]; return (nm!=null && nm!=='') ? nm : String(n); }
 function layerLabel(n){ const nm = LAYER_NAMES[+n]; return (nm!=null && nm!=='') ? nm : ('L'+n); }
 
@@ -1349,21 +1354,38 @@ async function scanRepoLayouts(src){
   REPO_LAYOUTS_KEY = key; REPO_LAYOUTS = [];
   const tr = await githubApi(`https://api.github.com/repos/${src.owner}/${src.repo}/git/trees/${src.branch}?recursive=1`);
   if(!tr.ok) return;
-  const cands = (tr.json.tree||[]).filter(n => n.type==='blob' && (
+  const tree = tr.json.tree||[];
+  const dtsiCands = tree.filter(n => n.type==='blob' && (
         /physical|layout/i.test(n.path) || /\.overlay$/.test(n.path) ||
         (/(^|\/)boards\//.test(n.path) && /\.(dtsi|keymap)$/.test(n.path))))
       .map(n=>n.path).slice(0, 15);
-  if(!cands.length) return;
+  // keymap-editor / QMK info.json geometry (Nick Coutsos' convention, used with his
+  // blessing): a `<board>.json`, `info.json`, or `config/*.json` carrying a `layouts`
+  // map. Only the user's OWN repo is read — never his contrib catalogue. The dtsi/
+  // ZMK-native results above are appended first, so they win when both exist.
+  const boardRe = src.board && new RegExp(`(^|/)${src.board.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\.json$`,'i');
+  const jsonCands = tree.filter(n => n.type==='blob' && /\.json$/i.test(n.path)
+        && !/(^|\/)(package(-lock)?|tsconfig|manifest|west|build)\b/i.test(n.path)
+        && (/(^|\/)info\.json$/i.test(n.path) || /(^|\/)config\//i.test(n.path)
+            || (boardRe && boardRe.test(n.path))))
+      .map(n=>n.path).slice(0, 10);
+  if(!dtsiCands.length && !jsonCands.length) return;
   const base = `https://raw.githubusercontent.com/${src.owner}/${src.repo}/${src.branch}/`;
-  const texts = await Promise.all(cands.map(async p => {
-    try { const r = await fetch(base + p.split('/').map(encodeURIComponent).join('/'), {cache:'no-store'}); return r.ok ? await r.text() : ''; }
-    catch(e){ return ''; }
-  }));
+  const fetchText = p => fetch(base + p.split('/').map(encodeURIComponent).join('/'), {cache:'no-store'})
+        .then(r => r.ok ? r.text() : '').catch(e => '');
   const found = [];
-  for(let t of texts){
+  const dtsiTexts = await Promise.all(dtsiCands.map(fetchText));
+  for(let t of dtsiTexts){
     if(!/zmk,physical-layout/.test(t)) continue;
     t = t.replace(/\/\/.*/g,'').replace(/\/\*[\s\S]*?\*\//g,'');  // strip comments
     found.push(...parsePhysicalLayouts(t));
+  }
+  if(jsonCands.length && typeof LayoutJson !== 'undefined'){
+    const jsonTexts = await Promise.all(jsonCands.map(fetchText));
+    for(const t of jsonTexts){
+      if(!t) continue;
+      try { found.push(...LayoutJson.parseQmkInfoJson(t)); } catch(e){}
+    }
   }
   REPO_LAYOUTS = found;
 }
@@ -1445,7 +1467,7 @@ function computeSnappedColumns(layers){
   HIDDEN_KEYS = new Set(); SNAP_COLS = 0; SNAP_HIDE_COUNT = 0; SNAP_FULL = 0;
   if(!layers.length) return;
   const n = layers[0].bindings.length; SNAP_FULL = n;
-  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS).find(L => L.length === n);
+  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS, LOCAL_LAYOUTS).find(L => L.length === n);
   if(!phys) return;   // only meaningful with an exact coordinate layout
   const sameLen = layers.filter(L => L.bindings.length === n);
   const dead = i => sameLen.every(L => isDeadBinding(L.bindings[i]));
@@ -1525,7 +1547,7 @@ function renderLayer(bindings, overrides, rows, layerIndex){
   CUR_LI = (layerIndex == null) ? null : layerIndex;   // for edit-mode key tagging
   const ov0 = overrides || new Map();
   // Exact board geometry if a matching physical-layout is available.
-  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS).find(L => L.length === bindings.length);
+  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS, LOCAL_LAYOUTS).find(L => L.length === bindings.length);
   if(phys) return `<div class="eq-keyboard">${renderLayerCoords(bindings, ov0, phys)}</div>`;
   const layout = getLayout(bindings.length);
   // Unknown shape: use the keymap's own row formatting if it has real multi-row
@@ -2080,7 +2102,7 @@ function downloadKeymap(fmt){
   img.src=url;
 }
 
-function loadEx(){ document.getElementById('inp').value = EXAMPLE; EDIT_HISTORY=null; ACTIVE_LAYER=0; BOARD_FULL=false; BOARD_USER_SET=false; clearFileHandle(); }
+function loadEx(){ document.getElementById('inp').value = EXAMPLE; LOCAL_LAYOUTS=[]; EDIT_HISTORY=null; ACTIVE_LAYER=0; BOARD_FULL=false; BOARD_USER_SET=false; clearFileHandle(); }
 
 // Live preview: re-render shortly after the user stops typing in the raw .keymap box.
 // Makes raw-source editing immediate (the main editing path for template-generated
@@ -3267,7 +3289,28 @@ function closeGlossary(){ document.getElementById('glossmodal').classList.remove
     const f = e.dataTransfer.files[0]; if(!f) return;
     const r = new FileReader();
     r.onload = ()=>{
-      document.getElementById('inp').value = String(r.result || '');
+      const text = String(r.result || '');
+      // A dropped .json is treated as geometry (QMK / keymap-editor info.json), not a
+      // keymap: it positions the current keymap's keys. Parser rejects non-layout JSON.
+      if(/\.json$/i.test(f.name) && typeof LayoutJson !== 'undefined'){
+        let layouts = [];
+        try { layouts = LayoutJson.parseQmkInfoJson(text); } catch(_){}
+        if(layouts.length){
+          LOCAL_LAYOUTS = layouts;
+          const counts = layouts.map(L=>L.length).join('/');
+          if(document.getElementById('inp').value.trim()){
+            render();
+            try{ setStatus('ok','✓ Layout from '+f.name+' applied ('+counts+' keys)'); }catch(_){}
+          } else {
+            try{ setStatus('ok','✓ Layout '+f.name+' ready ('+counts+' keys) — now paste or drop a .keymap'); }catch(_){}
+          }
+          return;
+        }
+        try{ setStatus('fail','✗ '+f.name+' has no usable "layouts" block (expected a QMK / keymap-editor info.json)'); }catch(_){}
+        return;
+      }
+      // Otherwise: load it as the keymap source.
+      document.getElementById('inp').value = text;
       LOADED_SRC=null; REPO_LAYOUTS=[]; REPO_LAYOUTS_KEY=null; ZMK_LAYOUTS=[]; EDIT_HISTORY=null; FILE_HANDLE=null;
       render();
       try{ setStatus('ok','✓ Loaded '+f.name); }catch(_){}
@@ -3402,7 +3445,7 @@ function createNewKeymap(){
   const p = KEYMAP_PRESETS.find(x=>x.id===document.getElementById('nm-preset').value);
   if(!p) return;
   document.getElementById('inp').value = buildSkeleton(p);
-  LOADED_SRC=null; REPO_LAYOUTS=[]; REPO_LAYOUTS_KEY=null; ZMK_LAYOUTS=[]; EDIT_HISTORY=null; FILE_HANDLE=null;
+  LOADED_SRC=null; REPO_LAYOUTS=[]; REPO_LAYOUTS_KEY=null; ZMK_LAYOUTS=[]; LOCAL_LAYOUTS=[]; EDIT_HISTORY=null; FILE_HANDLE=null;
   closeNewKeymap(); render();
 }
 
