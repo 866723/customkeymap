@@ -327,7 +327,7 @@ select:focus,.kc-search:focus{outline:none;border-color:var(--accent);box-shadow
     </div>
     <div class="gh-row">
       <input type="text" id="gh-input" class="gh-input" spellcheck="false"
-             placeholder="GitHub owner, owner/repo, or a .keymap URL"
+             placeholder="GitHub owner, owner/repo, owner/repo@branch, or a .keymap URL"
              onkeydown="if(event.key==='Enter'){event.preventDefault();loadFromGitHub();}">
       <button class="btn-s btn-gh" id="btn-gh" onclick="loadFromGitHub()">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -2117,7 +2117,7 @@ const GH_DEFAULT = 'Kit-314/zmk-config-corne36';
 const GH_STORE_KEY = 'zmk-viz-gh-url';
 // Repo context of the last successful discovery, used to build raw URLs when
 // the user switches between multiple keymaps via the dropdown.
-let GH_LAST = { owner:null, repo:null, branch:null };
+let GH_LAST = { owner:null, repo:null, branch:null, ref:null };
 
 // All api.github.com GETs go through here. On the deployed site they route through
 // the same-origin Pages Function /api/gh/* (server token + edge cache → rate limits
@@ -2182,8 +2182,8 @@ function parseGitHubInput(s){
     const owner=m[1], repo=m[2], rest=m[3]||'';
     let f = rest.match(/^\/(?:blob|raw)\/(.+)$/);        // a specific file
     if(f) return {kind:'file', urls:[`https://raw.githubusercontent.com/${owner}/${repo}/${f[1]}`]};
-    let t = rest.match(/^\/tree\/([^/]+)(?:\/(.*))?$/);   // a branch (+ maybe subdir)
-    if(t) return {kind:'repo', owner, repo, branch:t[1], subdir:(t[2]||'')};
+    let t = rest.match(/^\/tree\/(.+)$/);   // branch (+ maybe subdir) — ambiguous (branch names can contain /), resolved against real branches at load time
+    if(t) return {kind:'repo', owner, repo, branch:null, subdir:'', treePath:t[1]};
     return {kind:'repo', owner, repo, branch:null, subdir:''};  // bare repo URL
   }
   // github.com/<owner> (no repo) -> search all of that owner's repos
@@ -2200,6 +2200,11 @@ function parseGitHubInput(s){
   if(parts.length === 1) return {kind:'owner', owner:parts[0]};  // bare "owner" -> owner-wide
   if(parts.length < 2) return null;
   const owner=parts[0], repo=parts[1], path=parts.slice(2).join('/');
+  // owner/repo/tree/<branch>[/subdir] shorthand — mirrors the github.com URL path.
+  // treePath is ambiguous (branch may contain /); resolved against real branches at load.
+  if(!branch && parts[2]==='tree' && parts.length>=4){
+    return {kind:'repo', owner, repo, branch:null, subdir:'', treePath: parts.slice(3).join('/')};
+  }
   if(path.endsWith('.keymap')){
     const base=`https://raw.githubusercontent.com/${owner}/${repo}`;
     return {kind:'file', urls: branch?[`${base}/${branch}/${path}`]
@@ -2217,7 +2222,7 @@ function keymapCmp(a,b){
 function rankKeymaps(paths){ return paths.slice().sort(keymapCmp); }
 
 function rawUrl(path){
-  return `https://raw.githubusercontent.com/${GH_LAST.owner}/${GH_LAST.repo}/${GH_LAST.branch}/${path}`;
+  return `https://raw.githubusercontent.com/${GH_LAST.owner}/${GH_LAST.repo}/${GH_LAST.ref||GH_LAST.branch}/${path}`;
 }
 
 async function fetchRawInto(urls){
@@ -2258,6 +2263,31 @@ function fillKeymapSelect(items){
   sel.style.display = items.length>1 ? '' : 'none';
 }
 
+// Resolve an ambiguous "branch[/subdir]" tree path (from a /tree/<…> URL or
+// owner/repo/tree/<…> shorthand) against a repo's real branch names. Branch names
+// can contain slashes (feat/x), so we can't just split on the first slash — pick the
+// LONGEST branch name that matches a leading path-segment prefix. Returns
+// {branch, sha, subdir} or null if nothing matches.
+function matchBranchPrefix(treePath, branches){
+  let best=null;
+  for(const b of branches){
+    if(treePath===b.name || treePath.startsWith(b.name+'/')){
+      if(!best || b.name.length>best.name.length) best=b;
+    }
+  }
+  if(!best) return null;
+  return {branch:best.name, sha:best.sha,
+          subdir: treePath===best.name ? '' : treePath.slice(best.name.length+1)};
+}
+
+// Fetch a repo's branch names + head SHAs (one page; >100 branches is rare for a
+// keymap repo and would just fall back to first-segment parsing).
+async function fetchRepoBranches(owner, repo){
+  const r = await githubApi(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`);
+  if(!r.ok || !Array.isArray(r.json)) return [];
+  return r.json.map(b=>({name:b.name, sha:b.commit&&b.commit.sha})).filter(b=>b.sha);
+}
+
 // Find .keymap files in a repo via the GitHub API, then load (and offer a
 // dropdown if there's more than one).
 async function discoverAndLoad(ref){
@@ -2265,13 +2295,25 @@ async function discoverAndLoad(ref){
   sel.style.display='none'; sel.innerHTML='';
 
   let branch = ref.branch;
+  let subdir = ref.subdir || '';
+  let treeRef = branch;            // what we fetch the tree by: a branch name, or a commit SHA for slash-containing branches
+  if(!branch && ref.treePath){
+    if(ref.treePath.indexOf('/') < 0){
+      branch = treeRef = ref.treePath;            // single-segment branch — unambiguous, no extra API call
+    } else {
+      const m = matchBranchPrefix(ref.treePath, await fetchRepoBranches(ref.owner, ref.repo));
+      if(m){ branch = m.branch; subdir = m.subdir; treeRef = m.sha; }   // SHA avoids a slash-in-URL on the trees API
+      else { const i = ref.treePath.indexOf('/'); branch = treeRef = ref.treePath.slice(0,i); subdir = ref.treePath.slice(i+1); }
+    }
+  }
   if(!branch){
     const r = await githubApi(`https://api.github.com/repos/${ref.owner}/${ref.repo}`);
     if(r.ok) branch = r.json.default_branch;
     branch = branch || 'main';
+    treeRef = branch;
   }
 
-  const tr = await githubApi(`https://api.github.com/repos/${ref.owner}/${ref.repo}/git/trees/${branch}?recursive=1`);
+  const tr = await githubApi(`https://api.github.com/repos/${ref.owner}/${ref.repo}/git/trees/${treeRef}?recursive=1`);
   if(!tr.ok){
     setStatus('fail', tr.status===404 ? '✗ Repo or branch not found'
       : (tr.status===403||tr.status===429) ? rateMsg()
@@ -2280,11 +2322,11 @@ async function discoverAndLoad(ref){
   }
   const tree = tr.json.tree || [];
   let keymaps = tree.filter(n=>n.type==='blob' && n.path.endsWith('.keymap')).map(n=>n.path);
-  if(ref.subdir) keymaps = keymaps.filter(p=>p===ref.subdir || p.startsWith(ref.subdir+'/'));
+  if(subdir) keymaps = keymaps.filter(p=>p===subdir || p.startsWith(subdir+'/'));
   if(!keymaps.length){ setStatus('fail','✗ No ZMK <code>.keymap</code> in this repo (it may be a hardware/QMK repo). New to ZMK? Hit <b>New from scratch</b> or <b>Load Example</b> above - or paste / drag a <code>.keymap</code> file.'); return; }
 
   keymaps = rankKeymaps(keymaps);
-  GH_LAST = { owner:ref.owner, repo:ref.repo, branch };
+  GH_LAST = { owner:ref.owner, repo:ref.repo, branch, ref:treeRef };
   fillKeymapSelect(keymaps.map(p=>({url:rawUrl(p), label:p})));
   setStatus('loading','<span class="spinner"></span>Fetching…');
   if(await fetchRawInto([rawUrl(keymaps[0])]))
