@@ -613,6 +613,9 @@ function kl(k){
 // Layer index → display name, populated per-render from the parsed layers so that
 // &mo/&to/&lt etc. read as "MO Num" rather than "MO 7".
 let LAYER_NAMES = [];
+// Canonical board key-count for the loaded keymap (modal across all layers).
+// Set in render(); used so every layer renders with one geometry. See renderLayer.
+let BOARD_KEYCOUNT = null;
 // Physical key geometry parsed from any zmk,physical-layout `keys` in the keymap
 // (each = [{x,y,w,h} in centi-key-units]). Lets us draw the actual board to scale.
 let PHYS_LAYOUTS = [];
@@ -723,9 +726,23 @@ function translate(b){
     }
   }
 
-  // Custom macro (zmk,behavior-macro), with or without parameters. Show the macro
-  // name; the tooltip lists what it sends.
-  if((m=b.match(/^&(\w+)(?:\s+.+)?$/)) && typeof CUSTOM_MACROS!=='undefined' && CUSTOM_MACROS.has(m[1])){
+  // Custom macro (zmk,behavior-macro). For a parameterised macro invoked with
+  // args (e.g. `&digraph CRT A`), substitute the args into the macro's output
+  // sequence and show what it actually sends, rather than the bare template name.
+  // Falls back to the name for arg-less macros or ones with no readable output.
+  if((m=b.match(/^&(\w+)(?:\s+(.+))?$/)) && typeof CUSTOM_MACROS!=='undefined' && CUSTOM_MACROS.has(m[1])){
+    const mac=CUSTOM_MACROS.get(m[1]);
+    const args = m[2] ? m[2].trim().split(/\s+/) : [];
+    if(args.length && mac.seq && mac.seq.some(s=>/MACRO_PLACEHOLDER/.test(s))){
+      const resolved = macroFill(mac, args)
+        .filter(bd=>!/MACRO_PLACEHOLDER/.test(bd))   // drop slots that got no arg
+        .map(bd=>translate(bd).label.replace(/\n/g,' ').trim()).filter(Boolean);
+      if(resolved.length){
+        let lbl = resolved.join(' ');
+        if(lbl.length>12) lbl = lbl.slice(0,12)+'…';
+        return {label: lbl, type:'system'};
+      }
+    }
     let lbl = m[1].replace(/_/g,' ');
     if(lbl.length>12) lbl = lbl.slice(0,11)+'…';
     return {label: lbl, type:'system'};
@@ -739,14 +756,77 @@ function stripComments(t){
   return t.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*/g,'');
 }
 
-// Split raw bindings content (<…>) into individual &-prefixed tokens
-function splitBindings(content){
-  const out=[];
-  // Split on & boundaries
-  const parts = content.split(/(?=&)/);
-  for(let p of parts){
+// ZMK built-in behaviours → #binding-cells. null = variable arg count, so we
+// never absorb a following &-binding as one of its parameters (which would
+// mis-merge e.g. `&bt BT_CLR &kp X`). Custom hold-taps are learned from the
+// keymap's own #binding-cells by parseBindingCells().
+const BUILTIN_CELLS = {
+  kp:1, mo:1, to:1, tog:1, sl:1, sk:1, kt:1, lt:2, mt:2,
+  trans:0, none:0, bootloader:0, sys_reset:0, reset:0,
+  key_repeat:0, caps_word:0, gresc:0, grave_escape:0, studio_unlock:0, soft_off:0,
+  mkp:1, mmv:1, msc:1, mwh:1,
+  bt:null, rgb_ug:null, out:null, ext_power:null, bl:null, backlight:null
+};
+let BINDING_CELLS = Object.assign({}, BUILTIN_CELLS);
+// Learn #binding-cells for custom hold-taps from the source. The case that
+// matters: a hold-tap whose tap parameter is itself a &phandle (e.g.
+// `&my_ht 7 &key_repeat`) — without this the inner & splits one key into two,
+// throwing off the per-layer key count and the geometry that depends on it.
+function parseBindingCells(text){
+  const cells = Object.assign({}, BUILTIN_CELLS);
+  const re=/\bbehaviors\s*\{/g; let sm;
+  while((sm=re.exec(text))!==null){
+    let depth=1,i=sm.index+sm[0].length;
+    while(i<text.length&&depth>0){const c=text[i++]; if(c==='{')depth++; else if(c==='}')depth--;}
+    const block=text.slice(sm.index+sm[0].length,i-1);
+    const cre=/(?:(\w+)\s*:\s*)?(\w+)\s*\{/g; let cm;
+    while((cm=cre.exec(block))!==null){
+      if(cm[2]==='compatible'){ continue; }
+      let d=1,j=cm.index+cm[0].length;
+      while(j<block.length&&d>0){const c=block[j++]; if(c==='{')d++; else if(c==='}')d--;}
+      const body=block.slice(cm.index+cm[0].length,j-1);
+      const compatM=body.match(/compatible\s*=\s*"([^"]+)"/);
+      const bcM=body.match(/#binding-cells\s*=\s*<\s*(\d+)\s*>/);
+      // A hold-tap is always 2-cell by definition — infer it even when the
+      // explicit #binding-cells comes from an un-expanded template macro.
+      let n=null;
+      if(compatM && /hold-tap/.test(compatM[1])) n=2;
+      else if(bcM) n=+bcM[1];
+      if(n!=null){
+        if(cm[1]) cells[cm[1]]=n;
+        cells[cm[2]]=n;
+      }
+      cre.lastIndex=j;
+    }
+  }
+  return cells;
+}
+
+// Split raw bindings content (<…>) into individual &-prefixed tokens, then
+// re-merge a &phandle that sits in a hold-tap parameter slot (see splitBindings).
+function splitBindings(content, cells){
+  cells = cells || BINDING_CELLS;
+  const raw = [];
+  for(let p of content.split(/(?=&)/)){
     p = p.replace(/\s+/g,' ').trim();
-    if(p.startsWith('&')) out.push(p);
+    if(p.startsWith('&')) raw.push(p);
+  }
+  // Over-split happens when a binding's PARAMETER is itself a &phandle (a
+  // hold-tap whose tap is e.g. &key_repeat). Re-merge using #binding-cells:
+  // only behaviours taking ≥2 cells (hold-taps) can have a behaviour-valued
+  // param; 1-cell and variable-arity (&bt, &rgb_ug) behaviours are left as-is.
+  const out=[];
+  for(let i=0;i<raw.length;i++){
+    let tok=raw[i];
+    const name=(tok.match(/^&(\S+)/)||[])[1];
+    const need=cells[name];
+    if(need>=2){
+      let params=tok.split(' ').length-1;          // bare params already attached
+      while(params<need && i+1<raw.length){
+        tok=tok+' '+raw[i+1]; i++; params++;        // absorb a &phandle param as one cell
+      }
+    }
+    out.push(tok);
   }
   return out;
 }
@@ -754,6 +834,7 @@ function splitBindings(content){
 // ── Parse layers ─────────────────────────────────────────────────────────────
 function parseLayers(text){
   text = stripComments(text);
+  BINDING_CELLS = parseBindingCells(text);   // learn custom hold-tap arities first
 
   // Layers are child nodes of the `keymap { }` node, while combos, behaviours and
   // macros sit in sibling nodes. Scoping the scan to the keymap node lets a bindings
@@ -963,7 +1044,11 @@ function parseMacros(text){
       const compatM = body.match(/compatible\s*=\s*"([^"]+)"/);
       if(!compatM || !/^zmk,behavior-macro/.test(compatM[1])) continue;
       const cellsM = body.match(/#binding-cells\s*=\s*<\s*(\d+)\s*>/);
-      const params = cellsM ? parseInt(cellsM[1],10) : 0;
+      // Param count: prefer explicit #binding-cells, else infer from the
+      // compatible (the -one-param / -two-param macro types), since the explicit
+      // cells often come from an un-expanded ZMK_MACRO template helper.
+      let params = cellsM ? parseInt(cellsM[1],10) : 0;
+      if(!params){ if(/two-param/.test(compatM[1])) params=2; else if(/one-param/.test(compatM[1])) params=1; }
       const bndsM = body.match(/bindings\s*=\s*([^;]+);/);
       let seq = [];
       if(bndsM){
@@ -1150,7 +1235,7 @@ function explain(b){
     if(typeof CUSTOM_MACROS!=='undefined' && CUSTOM_MACROS.has(m[1])){
       const mac=CUSTOM_MACROS.get(m[1]);
       const pnote = mac.params>0 ? ` (takes ${mac.params} parameter${mac.params>1?'s':''})` : '';
-      return `Macro${pnote}: ${macroSends(mac)}`;
+      return `Macro${pnote}: ${macroSends(mac, p)}`;
     }
   }
   return b;  // fallback: show the raw binding
@@ -1546,17 +1631,25 @@ function renderLayerWrap(bindings, ov){
 function renderLayer(bindings, overrides, rows, layerIndex){
   CUR_LI = (layerIndex == null) ? null : layerIndex;   // for edit-mode key tagging
   const ov0 = overrides || new Map();
+  // Render every layer with ONE board geometry (the keymap's modal key count),
+  // so a layer with an off-by-N count doesn't switch to a different shape. Pad a
+  // short layer with &trans / trim an over-long one to fit that geometry.
+  const n = BOARD_KEYCOUNT || bindings.length;
+  let b = bindings;
+  if(b.length !== n){
+    b = bindings.slice(0, n);
+    while(b.length < n) b.push('&trans');
+  }
   // Exact board geometry if a matching physical-layout is available.
-  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS, LOCAL_LAYOUTS).find(L => L.length === bindings.length);
-  if(phys) return `<div class="eq-keyboard">${renderLayerCoords(bindings, ov0, phys)}</div>`;
-  const layout = getLayout(bindings.length);
+  const phys = PHYS_LAYOUTS.concat(REPO_LAYOUTS, ZMK_LAYOUTS, LOCAL_LAYOUTS).find(L => L.length === n);
+  if(phys) return `<div class="eq-keyboard">${renderLayerCoords(b, ov0, phys)}</div>`;
+  const layout = getLayout(n);
   // Unknown shape: use the keymap's own row formatting if it has real multi-row
   // structure; otherwise (one collapsed line) flow into a readable wrapped grid.
   if(!layout) return (rows && rows.length > 1)
     ? renderLayerRows(rows, ov0)
-    : renderLayerWrap(bindings, ov0);
-  if(layout.coord) return renderLayerEQ(bindings, overrides, layout.coord==='joy');
-  const b = bindings;
+    : renderLayerWrap(b, ov0);
+  if(layout.coord) return renderLayerEQ(b, overrides, layout.coord==='joy');
   const ov = overrides || new Map();
   let h = '<div class="keyboard">';
   // Left half
@@ -1731,14 +1824,26 @@ function renderEncoders(list){
 // at a glance even when only triggered via combos or not bound anywhere.
 // Readable summary of what a macro does: each action binding run through the same
 // labeller as the keys, joined in order (the parameter slot shows as <param>).
-function macroSends(mac){
+// Substitute a parameterised macro's MACRO_PLACEHOLDER slots with an invocation's
+// args, left-to-right. That matches the usual sequential &macro_param_NtoM
+// routing (e.g. digraph's `param1 then param2`); unusual non-sequential routing
+// would only swap which arg shows, never lose it. Returns the output bindings.
+function macroFill(mac, args){
+  args = args || [];
+  let ai = 0;
+  return (mac.seq||[]).map(bd => bd.replace(/MACRO_PLACEHOLDER/g, () => {
+    const v = args[ai]; ai++; return (v!=null) ? v : 'MACRO_PLACEHOLDER';
+  }));
+}
+function macroSends(mac, args){
   if(!mac.seq || !mac.seq.length) return mac.params>0 ? 'its parameter' : 'a sequence';
-  const parts = mac.seq.slice(0,8).map(bd=>{
+  const filled = (args && args.length) ? macroFill(mac, args) : mac.seq;
+  const parts = filled.slice(0,8).map(bd=>{
     if(/MACRO_PLACEHOLDER/.test(bd)) return '‹param›';
     const l = translate(bd).label.replace(/\n/g,' ').trim();
     return l || bd.replace(/^&/,'');
   });
-  if(mac.seq.length>8) parts.push('…');
+  if(filled.length>8) parts.push('…');
   return parts.join(' · ');
 }
 
@@ -1921,6 +2026,17 @@ async function render(){
     const overrides = parseKeyOverrides(text);
     buildEditModel(layers);   // edit-mode document model from raw source (sets EDIT_STRUCTURED)
     computeSnappedColumns(layers);   // detect snapped-off outer columns (e.g. 36-key Corne)
+    // One board geometry for the whole keymap: the modal key count across layers.
+    // A single miscounted layer (a parse quirk, or an author who dropped a key)
+    // then renders in the board's shape with blanks, instead of switching to a
+    // different layout. The layer-key-count check surfaces the underlying gap.
+    BOARD_KEYCOUNT = (function(){
+      const freq=new Map();
+      for(const L of layers){ const n=L.bindings.length; freq.set(n,(freq.get(n)||0)+1); }
+      let best=layers[0].bindings.length, bestC=0;
+      for(const [n,c] of freq){ if(c>bestC || (c===bestC && n>best)){ best=n; bestC=c; } }
+      return best;
+    })();
     let h = '';
     const canEdit = EDIT_MODE && EDIT_STRUCTURED;
     LAYER_COUNT = layers.length;
